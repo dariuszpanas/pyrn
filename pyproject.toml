@@ -1,0 +1,81 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatch_build"
+backend-path = ["."]
+
+[project]
+name = "pyrn"
+version = "0.1.0"
+description = "Rust-powered Python/pytest Test Impact Analysis, content-addressed test caching, and isolated warm-pool execution engine"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.11"
+keywords = [
+    "pytest",
+    "python",
+    "testing",
+    "test-impact-analysis",
+    "rust",
+    "runner",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Rust",
+    "Topic :: Software Development :: Testing",
+]
+# Zero-dependency platform wheel launcher for the bundled Rust `pyrn` binary (NO PyO3).
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/dariuszpanas/pyrn"
+Repository = "https://github.com/dariuszpanas/pyrn"
+Issues = "https://github.com/dariuszpanas/pyrn/issues"
+
+[project.scripts]
+pyrn = "pyrn.entrypoint:main"
+
+[tool.hatch.build.targets.sdist]
+only-include = [
+    ".gitignore",
+    "Cargo.lock",
+    "Cargo.toml",
+    "LICENSE",
+    "README.md",
+    "crates",
+    "hatch_build.py",
+    "pyproject.toml",
+    "scripts",
+    "src",
+]
+ignore-vcs = true
+exclude = [
+    ".artifacts/",
+    ".coverage",
+    ".pyrn/",
+    ".pytest_cache/",
+    ".ruff_cache/",
+    ".venv/",
+    "__pycache__/",
+    "*.egg-info/",
+    "*.py[cod]",
+    "dist/",
+    "research/",
+    "src/pyrn/_bin/",
+    "/target/",
+    "**/target/",
+]
+skip-excluded-dirs = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pyrn"]
+
+[tool.hatch.build.targets.wheel.hooks.custom]
+path = "scripts/native_wheel.py"

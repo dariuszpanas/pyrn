@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  lint-and-pure-core:
+    name: Format, Clippy & Pure Core (no-default-features)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Check pure pyrn-core (--no-default-features)
+        run: |
+          cargo check -p pyrn-core --no-default-features --locked
+          cargo clippy -p pyrn-core --no-default-features --all-targets --locked -- -D warnings
+          cargo test -p pyrn-core --no-default-features --locked
+
+      - name: Clippy workspace
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+  test-and-wheel:
+    name: Test & Wheel (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+
+      - name: Prepare Python test environment (pytest + coverage)
+        shell: bash
+        run: |
+          uv venv .ci-venv --python 3.12
+          uv pip install --python .ci-venv pytest coverage
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            echo "PYRN_TEST_PYTHON=$(pwd -W)/.ci-venv/Scripts/python.exe" >> "$GITHUB_ENV"
+          else
+            echo "PYRN_TEST_PYTHON=$(pwd)/.ci-venv/bin/python" >> "$GITHUB_ENV"
+          fi
+
+      - name: Run workspace release test suite
+        run: cargo test --workspace --release --locked
+
+      - name: Build release binary
+        run: cargo build --release --locked -p pyrn-cli
+
+      - name: Build and smoke-test zero-dependency Python wheel
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            export PYRN_PREBUILT_BINARY="target/release/pyrn.exe"
+          else
+            export PYRN_PREBUILT_BINARY="target/release/pyrn"
+          fi
+          uv build --wheel
+          ls -la dist/
+          WHEEL=$(ls dist/*.whl | head -n 1)
+          uv run --no-project --with "$WHEEL" pyrn --version
+          uv run --no-project --with "$WHEEL" python -m pyrn --version
+          uv run --no-project --with "$WHEEL" pyrn doctor --repo .

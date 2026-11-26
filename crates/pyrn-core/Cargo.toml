@@ -1,0 +1,38 @@
+[package]
+name = "pyrn-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Pure-Rust Test Impact Analysis (TIA), symbol-level dependency graph, and content-addressed test caching core for pyrn"
+
+[lints]
+workspace = true
+
+[features]
+# Default is 100% pure in-memory Rust: zero subprocesses, zero C/SQLite FFI, zero FS walking.
+default = []
+# Parallel filesystem tree loading and on-disk config/trace loading.
+fs = ["dep:ignore"]
+# Multi-process ACID SQLite WAL content-addressed test result cache.
+cache = ["dep:rusqlite"]
+# Read-only Git subprocess integration (commit replay and base-ref tree diffing).
+process = []
+# Enable all host features (used by pyrn-runner and pyrn-cli).
+full = ["fs", "cache", "process"]
+
+[dependencies]
+anyhow = { workspace = true }
+blake3 = { workspace = true }
+ignore = { workspace = true, optional = true }
+rayon = { workspace = true }
+rusqlite = { workspace = true, optional = true }
+rustpython-parser = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

@@ -1,0 +1,26 @@
+[package]
+name = "pyrn-runner"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Isolated warm-pool Rust execution engine, container-aware resource scheduler, and unified TIA/CAS test runner for pyrn"
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow.workspace = true
+blake3.workspace = true
+getrandom.workspace = true
+num_cpus.workspace = true
+pyrn-core = { workspace = true, features = ["fs", "cache", "process"] }
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+walkdir.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

@@ -1,0 +1,29 @@
+# Rust build artifacts
+/target/
+**/target/
+
+# Python packaging & caches
+/dist/
+/build/
+*.egg-info/
+.venv/
+.ci-venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Bundled native binaries staged into Python wheel source tree
+/src/pyrn/_bin/
+
+# Runtime caches & temporary outputs
+.pyrn/
+.artifacts/
+*.tmp
+*.bak
+
+# Local research notes & benchmarks
+research/
