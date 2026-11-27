@@ -749,3 +749,175 @@ async fn cov_sysmon_captures_import_time_definitions_and_relative_cov_out() {
         "import-time class/def/constant lines must be covered under --cov-sysmon, got {pct}%: {parsed}"
     );
 }
+
+#[tokio::test]
+async fn tia_fails_closed_to_full_verified_when_git_base_is_missing() {
+    let Some(python) = find_test_python() else {
+        return;
+    };
+
+    let repo = tempfile::tempdir().expect("temp repo");
+    let cache_dir = tempfile::tempdir().expect("cache dir");
+    fs::create_dir_all(repo.path().join("tests")).unwrap();
+    fs::write(
+        repo.path().join("tests/test_alpha.py"),
+        "def test_alpha():\n    assert 1 + 1 == 2\n",
+    )
+    .unwrap();
+    fs::write(
+        repo.path().join("tests/test_beta.py"),
+        "def test_beta():\n    assert 2 + 2 == 4\n",
+    )
+    .unwrap();
+
+    // Directory is not even a git repository, so resolving `origin/main` must fail closed.
+    let opts = UnifiedRunOptions {
+        run: RunConfig {
+            project_root: repo.path().to_path_buf(),
+            python_exe: python,
+            workers: Some(1),
+            role: SlotRole::Verify,
+            tier: ConfidenceTier::StrictImpacted,
+            cache_dir: Some(cache_dir.path().to_path_buf()),
+            test_timeout_secs: 20,
+            ..RunConfig::default()
+        },
+        tia: true,
+        base_ref: Some("origin/main".to_owned()),
+        ..UnifiedRunOptions::default()
+    };
+
+    let outcome = execute_unified_run(&opts).await.expect("fail-closed run");
+    let impact = outcome.impact.expect("impact metadata");
+    assert_eq!(impact.effective_tier, ConfidenceTier::FullVerified);
+    assert!(
+        impact
+            .full_fallback_reasons
+            .iter()
+            .any(|r| r.contains("fail-closed")),
+        "expected fail-closed git fallback reason, got {:?}",
+        impact.full_fallback_reasons
+    );
+    assert_eq!(outcome.report.exit_code, 0);
+    assert_eq!(outcome.report.passed, 2);
+}
+
+#[tokio::test]
+async fn tia_with_cache_bypasses_cas_reads_on_full_verified_fallback() {
+    let Some(python) = find_test_python() else {
+        return;
+    };
+
+    let repo = tempfile::tempdir().expect("temp repo");
+    let cache_dir = tempfile::tempdir().expect("cache dir");
+    fs::create_dir_all(repo.path().join("tests")).unwrap();
+    fs::create_dir_all(repo.path().join("config")).unwrap();
+    fs::write(repo.path().join("config/policy.yaml"), "strict: true\n").unwrap();
+    fs::write(
+        repo.path().join("tests/test_alpha.py"),
+        "def test_alpha():\n    assert True\n",
+    )
+    .unwrap();
+    fs::write(
+        repo.path().join("tests/test_beta.py"),
+        "def test_beta():\n    assert True\n",
+    )
+    .unwrap();
+
+    // 1. Seed the CAS cache with a clean full run.
+    let seed_opts = UnifiedRunOptions {
+        run: RunConfig {
+            project_root: repo.path().to_path_buf(),
+            python_exe: python.clone(),
+            workers: Some(1),
+            role: SlotRole::Verify,
+            tier: ConfidenceTier::FullVerified,
+            cache_dir: Some(cache_dir.path().to_path_buf()),
+            test_timeout_secs: 20,
+            ..RunConfig::default()
+        },
+        cache: true,
+        ..UnifiedRunOptions::default()
+    };
+    let seeded = execute_unified_run(&seed_opts).await.expect("seed run");
+    assert_eq!(seeded.report.passed, 2);
+    assert_eq!(seeded.cache_seeded, 2);
+
+    // 2. Simulate an unmapped non-Python file edit under `--tia --cache`:
+    //    TIA fails closed to FullVerified and MUST bypass CAS reads so both tests run cold.
+    fs::write(repo.path().join("config/policy.yaml"), "strict: false\n").unwrap();
+    let fallback_opts = UnifiedRunOptions {
+        run: RunConfig {
+            project_root: repo.path().to_path_buf(),
+            python_exe: python,
+            workers: Some(1),
+            role: SlotRole::Verify,
+            tier: ConfidenceTier::StrictImpacted,
+            cache_dir: Some(cache_dir.path().to_path_buf()),
+            test_timeout_secs: 20,
+            ..RunConfig::default()
+        },
+        tia: true,
+        cache: true,
+        changed_files: vec!["config/policy.yaml".to_owned()],
+        ..UnifiedRunOptions::default()
+    };
+    let outcome = execute_unified_run(&fallback_opts)
+        .await
+        .expect("fallback run");
+    let impact = outcome.impact.expect("impact metadata");
+    assert_eq!(impact.effective_tier, ConfidenceTier::FullVerified);
+    assert_eq!(
+        outcome.report.tests_cached, 0,
+        "FullVerified fallback must not serve stale CAS hits"
+    );
+    assert_eq!(outcome.report.passed, 2);
+}
+
+#[test]
+fn git_changed_specs_uses_merge_base_when_base_branch_advances() {
+    let repo = tempfile::tempdir().expect("temp git repo");
+    let run_git = |args: &[&str]| {
+        let out = std::process::Command::new("git")
+            .arg("-C")
+            .arg(repo.path())
+            .args(args)
+            .output()
+            .expect("git command");
+        assert!(
+            out.status.success(),
+            "git {:?} failed: {}",
+            args,
+            String::from_utf8_lossy(&out.stderr)
+        );
+    };
+
+    run_git(&["init", "-b", "main"]);
+    run_git(&["config", "user.email", "ci@example.com"]);
+    run_git(&["config", "user.name", "CI"]);
+    fs::create_dir_all(repo.path().join("pkg")).unwrap();
+    fs::write(repo.path().join("pkg/a.py"), "def a():\n    return 1\n").unwrap();
+    fs::write(repo.path().join("pkg/b.py"), "def b():\n    return 2\n").unwrap();
+    run_git(&["add", "."]);
+    run_git(&["commit", "-m", "initial"]);
+
+    // Branch off main and edit only pkg/a.py.
+    run_git(&["checkout", "-b", "feature"]);
+    fs::write(repo.path().join("pkg/a.py"), "def a():\n    return 10\n").unwrap();
+    run_git(&["add", "pkg/a.py"]);
+    run_git(&["commit", "-m", "feature change"]);
+
+    // Advance main independently with an edit to pkg/b.py.
+    run_git(&["checkout", "main"]);
+    fs::write(repo.path().join("pkg/b.py"), "def b():\n    return 20\n").unwrap();
+    run_git(&["add", "pkg/b.py"]);
+    run_git(&["commit", "-m", "main change"]);
+
+    // Switch back to feature: diffing against main must use merge-base and see ONLY pkg/a.py.
+    run_git(&["checkout", "feature"]);
+    let cfg = pyrn_core::config::PyrnConfig::load_from_dir(repo.path());
+    let specs = pyrn_core::git_replay::git_changed_specs_against_base(repo.path(), "main", &cfg)
+        .expect("git specs");
+    let paths: Vec<String> = specs.into_iter().map(|s| s.path).collect();
+    assert_eq!(paths, vec!["pkg/a.py".to_owned()]);
+}

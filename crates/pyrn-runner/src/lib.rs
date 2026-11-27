@@ -221,16 +221,34 @@ pub async fn execute_unified_run_with_env(
     // Include ALL discovered test files when `!opts.tia` so files with 0 static `def test_*`
     // functions (e.g. inherited `unittest.TestCase` subclasses or `pytest_generate_tests`) are NEVER dropped!
     let (impact_opt, selected_files): (Option<ImpactResult>, BTreeSet<String>) = if opts.tia {
-        let changed_specs: Vec<ChangedFileSpec> = if !opts.changed_files.is_empty() {
-            opts.changed_files
-                .iter()
-                .map(|p| ChangedFileSpec::all(p.as_str()))
-                .collect()
-        } else {
-            let base = opts.base_ref.as_deref().unwrap_or("HEAD");
-            git_changed_specs_against_base(&project_root, base, &pyrn_cfg).unwrap_or_default()
-        };
-        let imp = graph.compute_impact_with_symbols(&changed_specs, run_cfg.tier);
+        let (changed_specs, imp): (Vec<ChangedFileSpec>, ImpactResult) =
+            if !opts.changed_files.is_empty() {
+                let specs: Vec<ChangedFileSpec> = opts
+                    .changed_files
+                    .iter()
+                    .map(|p| ChangedFileSpec::all(p.as_str()))
+                    .collect();
+                let impact = graph.compute_impact_with_symbols(&specs, run_cfg.tier);
+                (specs, impact)
+            } else {
+                let base = opts.base_ref.as_deref().unwrap_or("HEAD");
+                match git_changed_specs_against_base(&project_root, base, &pyrn_cfg) {
+                    Ok(specs) => {
+                        let impact = graph.compute_impact_with_symbols(&specs, run_cfg.tier);
+                        (specs, impact)
+                    }
+                    Err(err) => {
+                        // Fail closed whenever git diff / merge-base cannot be computed
+                        // (e.g. shallow clone missing base ref) instead of selecting 0 tests.
+                        let mut fallback =
+                            graph.compute_impact_with_symbols(&[], ConfidenceTier::FullVerified);
+                        fallback.full_fallback_reasons = vec![format!(
+                            "git diff against {base} failed (fail-closed): {err}"
+                        )];
+                        (Vec::new(), fallback)
+                    }
+                }
+            };
         let mut files: BTreeSet<String> = imp
             .impacted
             .iter()
@@ -328,7 +346,16 @@ pub async fn execute_unified_run_with_env(
         None
     };
 
-    if let Some(ref mut cas) = cas_opt {
+    // When TIA fails closed to `FullVerified` (unmapped non-Python file, global trigger, or git
+    // diff failure), bypass CAS reads so 100% of selected tests execute cold and cannot serve
+    // stale hits from before an untracked external file changed; fresh results are still seeded.
+    let bypass_cas_reads = impact_opt.as_ref().is_some_and(|i| {
+        i.effective_tier == ConfidenceTier::FullVerified && !i.full_fallback_reasons.is_empty()
+    });
+
+    if let Some(ref mut cas) = cas_opt
+        && !bypass_cas_reads
+    {
         let cacheable_keys: Vec<String> = selected_key_records
             .iter()
             .filter(|r| !r.safety.is_tainted())

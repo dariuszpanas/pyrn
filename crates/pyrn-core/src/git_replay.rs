@@ -68,20 +68,46 @@ pub struct ReplaySummary {
 
 /// Compute symbol-level `ChangedFileSpec`s for working-tree changes relative to `base_ref`
 /// (e.g. `HEAD`, `main`, `origin/main`) in a strictly read-only manner.
+///
+/// When `base_ref != "HEAD"`, resolves the exact common ancestor via `git merge-base <base_ref> HEAD`
+/// so branches behind `base_ref` (including GitHub Actions PR merge commits) diff only their own
+/// changes rather than unrelated upstream commits on `base_ref`.
 pub fn git_changed_specs_against_base(
     repo_root: &Path,
     base_ref: &str,
     config: &PyrnConfig,
 ) -> Result<Vec<ChangedFileSpec>> {
+    let resolved_base = if base_ref == "HEAD" {
+        "HEAD".to_owned()
+    } else {
+        let mb_out = Command::new("git")
+            .arg("-C")
+            .arg(repo_root)
+            .args(["merge-base", base_ref, "HEAD"])
+            .output()
+            .with_context(|| format!("failed to run git merge-base {base_ref} HEAD"))?;
+        if !mb_out.status.success() {
+            anyhow::bail!(
+                "git merge-base {base_ref} HEAD failed: {}",
+                String::from_utf8_lossy(&mb_out.stderr).trim()
+            );
+        }
+        let sha = String::from_utf8_lossy(&mb_out.stdout).trim().to_owned();
+        if sha.is_empty() {
+            anyhow::bail!("git merge-base {base_ref} HEAD returned empty output");
+        }
+        sha
+    };
+
     let diff_out = Command::new("git")
         .arg("-C")
         .arg(repo_root)
-        .args(["diff", "--name-status", base_ref])
+        .args(["diff", "--name-status", &resolved_base])
         .output()
-        .with_context(|| format!("failed to run git diff against {base_ref}"))?;
+        .with_context(|| format!("failed to run git diff against {resolved_base}"))?;
     if !diff_out.status.success() {
         anyhow::bail!(
-            "git diff --name-status {base_ref} failed: {}",
+            "git diff --name-status {resolved_base} failed: {}",
             String::from_utf8_lossy(&diff_out.stderr)
         );
     }
@@ -130,7 +156,7 @@ pub fn git_changed_specs_against_base(
         if path.ends_with(".py")
             && !added_or_deleted.contains(&path)
             && let (Some(before), Ok(after)) = (
-                git_show_bytes(repo_root, &format!("{base_ref}:{path}")),
+                git_show_bytes(repo_root, &format!("{resolved_base}:{path}")),
                 std::fs::read(repo_root.join(&path)),
             )
         {

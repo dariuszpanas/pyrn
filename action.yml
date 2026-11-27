@@ -104,9 +104,9 @@ inputs:
     required: false
     default: ""
   version:
-    description: Release version of pyrn to install and verify (e.g. 0.2.1)
+    description: Release version of pyrn to install and verify (e.g. 0.2.2)
     required: false
-    default: "0.2.1"
+    default: "0.2.2"
   step-summary:
     description: Append a structured Markdown summary table to GITHUB_STEP_SUMMARY (true/false)
     required: false
