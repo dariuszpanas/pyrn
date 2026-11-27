@@ -921,3 +921,47 @@ fn git_changed_specs_uses_merge_base_when_base_branch_advances() {
     let paths: Vec<String> = specs.into_iter().map(|s| s.path).collect();
     assert_eq!(paths, vec!["pkg/a.py".to_owned()]);
 }
+
+#[tokio::test]
+async fn cache_and_tia_respect_testpaths_and_ignore_scripts_test_files() {
+    let Some(python) = find_test_python() else {
+        return;
+    };
+
+    let repo = tempfile::tempdir().expect("temp repo");
+    let cache_dir = tempfile::tempdir().expect("cache dir");
+    fs::write(repo.path().join(".pyrn.toml"), "testpaths = [\"tests\"]\n").unwrap();
+    fs::create_dir_all(repo.path().join("tests")).unwrap();
+    fs::create_dir_all(repo.path().join("scripts")).unwrap();
+    fs::write(
+        repo.path().join("tests/test_real.py"),
+        "def test_real():\n    assert True\n",
+    )
+    .unwrap();
+    // Helper CLI script named `test_*.py` outside `testpaths` with non-fixture arguments.
+    fs::write(
+        repo.path().join("scripts/test_helper_cli.py"),
+        "def test_remote_endpoint(address: str) -> bool:\n    return bool(address)\n",
+    )
+    .unwrap();
+
+    let opts = UnifiedRunOptions {
+        run: RunConfig {
+            project_root: repo.path().to_path_buf(),
+            python_exe: python,
+            workers: Some(1),
+            role: SlotRole::Verify,
+            tier: ConfidenceTier::FullVerified,
+            cache_dir: Some(cache_dir.path().to_path_buf()),
+            test_timeout_secs: 20,
+            ..RunConfig::default()
+        },
+        cache: true,
+        ..UnifiedRunOptions::default()
+    };
+
+    let outcome = execute_unified_run(&opts).await.expect("cached run");
+    assert_eq!(outcome.report.exit_code, 0, "{:?}", outcome.report);
+    assert_eq!(outcome.report.passed, 1);
+    assert_eq!(outcome.report.failed, 0);
+}

@@ -616,12 +616,13 @@ impl DependencyGraph {
         let mut test_safety = Vec::new();
 
         for (rel, parsed) in &py_files {
-            let is_test_file = !parsed.tests.is_empty()
-                || (config.project.matches_test_filename(rel)
-                    && config.project.testpaths.iter().any(|tp| {
-                        let p = tp.trim_end_matches('/');
-                        p.is_empty() || rel.starts_with(&format!("{p}/"))
-                    }));
+            let in_testpaths = config.project.testpaths.is_empty()
+                || config.project.testpaths.iter().any(|tp| {
+                    let p = tp.trim_end_matches('/');
+                    p.is_empty() || p == "." || rel == p || rel.starts_with(&format!("{p}/"))
+                });
+            let is_test_file = in_testpaths
+                && (!parsed.tests.is_empty() || config.project.matches_test_filename(rel));
             if !is_test_file {
                 continue;
             }

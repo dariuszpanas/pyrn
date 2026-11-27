@@ -24,7 +24,7 @@ maps common pytest bottlenecks to concrete rollout stages, container safety boun
 steps from `pytest-xdist` and C-trace coverage.
 
 1. **[Get started](getting-started.md):** build or install the CLI, inspect your host budget with `pyrn doctor`, preview a TIA plan, and start a warm local daemon.
-2. **[GitHub Actions](github-actions.md):** add the verified native composite action (`uses: dariuszpanas/pyrn@v0.2.2`) with step summaries and `$GITHUB_OUTPUT` metrics.
+2. **[GitHub Actions](github-actions.md):** add the verified native composite action (`uses: dariuszpanas/pyrn@v0.2.3`) with step summaries and `$GITHUB_OUTPUT` metrics.
 3. **[Choose a recipe](recipes.md):** copy-paste setups for local TDD loops, Django + SQLite suites, GitHub Actions CI, container runners, and `--cov-sysmon`.
 4. **[Review benchmarks](benchmarks.md):** inspect verified cold, warm-daemon, SQLite template, and TIA + cache measurements with full parity verification.
 
@@ -44,5 +44,5 @@ steps from `pytest-xdist` and C-trace coverage.
 
 ## Project information
 
-`pyrn` is beta (`v0.2.2`). See the [benchmarks](benchmarks.md), [changelog](changelog.md),
+`pyrn` is beta (`v0.2.3`). See the [benchmarks](benchmarks.md), [changelog](changelog.md),
 [security model](security.md), and [contributing guide](contributing.md).

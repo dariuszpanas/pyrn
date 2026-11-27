@@ -7,6 +7,15 @@ All notable changes to `pyrn` are recorded here and summarized in the root
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-11-27
+
+### Fixed
+
+- **Enforce `testpaths` in `DependencyGraph` (`crates/pyrn-core`):**
+  - Exclude `test_*.py` scripts outside configured `testpaths` (such as `scripts/test_*.py`) from
+    `tests_by_file` so `--tia` and `--cache` match `pytest` discovery and never try to collect CLI
+    scripts as test modules.
+
 ## [0.2.2] - 2026-11-27
 
 ### Fixed

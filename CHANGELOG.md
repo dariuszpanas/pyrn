@@ -8,6 +8,15 @@ This project follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-11-27
+
+### Fixed
+
+- **Enforce `testpaths` in `DependencyGraph` (`crates/pyrn-core`)**:
+  - Exclude `test_*.py` helper scripts outside configured `testpaths` (e.g. `scripts/test_*.py`)
+    from `tests_by_file` so `--tia` and `--cache` match pytest/discovery test selection and never
+    attempt to execute CLI helper scripts as pytest test modules.
+
 ## [0.2.2] - 2026-11-27
 
 ### Fixed

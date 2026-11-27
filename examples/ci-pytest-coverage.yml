@@ -24,7 +24,7 @@ jobs:
 
       - name: Run pytest suite via pyrn
         id: pyrn
-        uses: dariuszpanas/pyrn@v0.2.2
+        uses: dariuszpanas/pyrn@v0.2.3
         with:
           command: run
           workers: "4"

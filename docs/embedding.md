@@ -22,7 +22,7 @@ Add the pure in-memory core to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-pyrn-core = { version = "0.2.2", default-features = false }
+pyrn-core = { version = "0.2.3", default-features = false }
 ```
 
 Verify a zero-FFI build at any time with:
