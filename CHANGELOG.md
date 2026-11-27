@@ -8,6 +8,20 @@ This project follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-26
+
+### Fixed
+
+- **Prevent `FORCE_COLOR`/`CLICOLOR_FORCE` bleed into test workers (`action.yml`, `crates/pyrn-runner`)**:
+  - Stop exporting `FORCE_COLOR=1` in `action.yml` (Rich presentation already detects
+    `GITHUB_ACTIONS`) and strip ambient `FORCE_COLOR`/`CLICOLOR_FORCE` from worker environments
+    so subprocess pytest assertions inside user test suites never receive unexpected ANSI escape
+    codes.
+- **Actionable failure diagnostics (`crates/pyrn-cli`)**:
+  - Display the trailing 14 lines (including highlighted `E ` assertion lines) in the Rich
+    `Failures / Faults / Flakes` panel instead of truncating after the first 6 lines of traceback
+    header.
+
 ## [0.2.0] - 2026-11-26
 
 ### Added

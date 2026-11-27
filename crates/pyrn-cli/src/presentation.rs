@@ -441,8 +441,21 @@ impl RichOutput {
                     Style::new().dim(),
                 );
                 if let Some(ref lr) = rec.longrepr {
-                    for line in lr.lines().take(6) {
-                        body.push_styled(format!("  {line}\n"), Style::new().dim());
+                    let lines: Vec<&str> = lr.lines().collect();
+                    let start = lines.len().saturating_sub(14);
+                    if start > 0 {
+                        body.push_styled(
+                            format!("  ... ({start} earlier lines omitted)\n"),
+                            Style::new().dim(),
+                        );
+                    }
+                    for line in &lines[start..] {
+                        let style = if line.trim_start().starts_with("E ") {
+                            Style::new().foreground(Color::Red)
+                        } else {
+                            Style::new().dim()
+                        };
+                        body.push_styled(format!("  {line}\n"), style);
                     }
                 }
             }

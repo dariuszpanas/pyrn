@@ -7,6 +7,19 @@ All notable changes to `pyrn` are recorded here and summarized in the root
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-26
+
+### Fixed
+
+- **Prevent `FORCE_COLOR` / `CLICOLOR_FORCE` bleed into worker subprocesses (`action.yml`, `crates/pyrn-runner`):**
+  - Removed `export FORCE_COLOR=1` from `action.yml` (`RichOutput` already detects `GITHUB_ACTIONS`
+    without mutating worker environments) and added `FORCE_COLOR` / `CLICOLOR_FORCE` to
+    `STRIPPED_ENV_KEYS` so tests asserting on subprocess `pytest` stdout never see unexpected ANSI
+    escape codes.
+- **Actionable failure tracebacks (`crates/pyrn-cli`):**
+  - Show the trailing 14 lines (highlighting `E ` assertion lines in red) inside the Rich
+    `Failures / Faults / Flakes` panel rather than stopping after the first 6 header lines.
+
 ## [0.2.0] - 2026-11-26
 
 ### Added

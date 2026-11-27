@@ -12,7 +12,7 @@ default-members = [
 ]
 
 [workspace.package]
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"
 license = "Apache-2.0"
 readme = "README.md"
@@ -36,8 +36,8 @@ tempfile = "3"
 tokio = { version = "1.50", features = ["macros", "rt-multi-thread", "sync", "time", "net", "io-util", "process", "signal"] }
 toml = "1.2"
 walkdir = "2.5"
-pyrn-core = { version = "0.2.0", path = "crates/pyrn-core" }
-pyrn-runner = { version = "0.2.0", path = "crates/pyrn-runner" }
+pyrn-core = { version = "0.2.1", path = "crates/pyrn-core" }
+pyrn-runner = { version = "0.2.1", path = "crates/pyrn-runner" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

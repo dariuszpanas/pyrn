@@ -25,6 +25,8 @@ const STRIPPED_ENV_KEYS: &[&str] = &[
     "COV_CORE_SOURCE",
     "COV_CORE_CONFIG",
     "COV_CORE_DATAFILE",
+    "FORCE_COLOR",
+    "CLICOLOR_FORCE",
 ];
 
 /// Cache layout segregated by `(role: agent|verify, project_fp, runtime_fp)`.
