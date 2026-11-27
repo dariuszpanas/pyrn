@@ -25,5 +25,8 @@ htmlcov/
 *.tmp
 *.bak
 
+# Documentation build output
+site/
+
 # Local research notes & benchmarks
 research/

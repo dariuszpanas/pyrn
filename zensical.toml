@@ -1,0 +1,75 @@
+[project]
+site_name = "pyrn"
+site_description = "Rust-powered Python/pytest Test Impact Analysis, BLAKE3 test caching, and isolated warm-pool execution."
+site_author = "pyrn contributors"
+site_url = "https://dariuszpanas.github.io/pyrn/"
+repo_url = "https://github.com/dariuszpanas/pyrn"
+repo_name = "dariuszpanas/pyrn"
+docs_dir = "docs"
+site_dir = "site"
+extra_css = ["stylesheets/extra.css"]
+nav = [
+  { "Home" = "index.md" },
+  { "Start here" = [
+    { "Get started" = "getting-started.md" },
+    { "Assess and adopt in CI" = "ci-adoption.md" },
+    { "Recipes" = "recipes.md" },
+  ] },
+  { "Reference" = [
+    { "Commands" = "commands.md" },
+    { "Configuration" = "configuration.md" },
+    { "Test Impact Analysis" = "tia.md" },
+    { "Content-addressed cache" = "caching.md" },
+    { "Execution engine" = "execution-engine.md" },
+    { "Resource budgeting" = "resource-budgeting.md" },
+    { "Receipts and telemetry" = "receipts-and-telemetry.md" },
+    { "Embedding pyrn-core" = "embedding.md" },
+  ] },
+  { "Project" = [
+    { "Benchmarks" = "benchmarks.md" },
+    { "Troubleshooting" = "troubleshooting.md" },
+    { "Security model" = "security.md" },
+    { "Contributing" = "contributing.md" },
+  ] },
+  { "Changelog" = "changelog.md" },
+]
+
+[project.theme]
+custom_dir = "overrides"
+logo = "assets/branding/pyrn_logo.png"
+favicon = "assets/branding/pyrn_logo.png"
+language = "en"
+features = [
+  "navigation.instant",
+  "navigation.tracking",
+  "navigation.sections",
+  "navigation.path",
+  "navigation.top",
+  "navigation.footer",
+  "content.code.copy",
+  "toc.follow",
+]
+font = false
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme)"
+toggle.icon = "lucide/sun-moon"
+toggle.name = "Switch to light mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+primary = "custom"
+accent = "custom"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+primary = "custom"
+accent = "custom"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to system preference"
+
+[project.plugins.offline]

@@ -38,6 +38,17 @@ jobs:
       - name: Clippy workspace
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
+  docs:
+    name: Docs Build & Link Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: Build documentation and check links
+        run: uvx --from "zensical>=0.0.20" zensical build --strict --clean && python scripts/check_docs.py
+
   test-and-wheel:
     name: Test & Wheel (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

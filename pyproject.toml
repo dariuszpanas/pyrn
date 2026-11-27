@@ -36,24 +36,35 @@ dependencies = []
 
 [project.urls]
 Homepage = "https://github.com/dariuszpanas/pyrn"
+Documentation = "https://dariuszpanas.github.io/pyrn/"
 Repository = "https://github.com/dariuszpanas/pyrn"
 Issues = "https://github.com/dariuszpanas/pyrn/issues"
+Changelog = "https://dariuszpanas.github.io/pyrn/changelog.html"
 
 [project.scripts]
 pyrn = "pyrn.entrypoint:main"
 
+[dependency-groups]
+dev = ["zensical>=0.0.20"]
+
 [tool.hatch.build.targets.sdist]
 only-include = [
     ".gitignore",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
     "Cargo.lock",
     "Cargo.toml",
     "LICENSE",
     "README.md",
+    "SECURITY.md",
     "crates",
+    "docs",
     "hatch_build.py",
+    "overrides",
     "pyproject.toml",
     "scripts",
     "src",
+    "zensical.toml",
 ]
 ignore-vcs = true
 exclude = [
@@ -68,6 +79,7 @@ exclude = [
     "*.py[cod]",
     "dist/",
     "research/",
+    "site/",
     "src/pyrn/_bin/",
     "/target/",
     "**/target/",

@@ -1,0 +1,93 @@
+/* Follow the system palette, with explicit light and dark overrides. */
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color: #b45309;
+  --md-primary-fg-color--light: #d97706;
+  --md-primary-fg-color--dark: #92400e;
+  --md-accent-fg-color: #b45309;
+  --md-accent-fg-color--transparent: rgb(180 83 9 / 12%);
+  --md-typeset-a-color: #b45309;
+}
+
+[data-md-color-scheme="slate"] {
+  --color-backdrop: 11 17 19;
+  --color-background: 20 28 31;
+  --color-background-subtle: 29 40 44;
+  --md-primary-fg-color: #f59e0b;
+  --md-primary-fg-color--light: #fbbf24;
+  --md-primary-fg-color--dark: #d97706;
+  --md-primary-bg-color: #0b1113;
+  --md-accent-fg-color: #f59e0b;
+  --md-accent-fg-color--transparent: rgb(245 158 11 / 12%);
+  --md-default-bg-color: #141c1f;
+  --md-default-fg-color: #e2e8ea;
+  --md-default-fg-color--light: #a7b8bd;
+  --md-default-fg-color--lighter: #789097;
+  --md-default-fg-color--lightest: #34474e;
+  --md-code-bg-color: #1d282c;
+  --md-code-fg-color: #e2e8ea;
+  --md-typeset-color: #e2e8ea;
+  --md-typeset-a-color: #f59e0b;
+  --md-typeset-table-color: #34474e;
+  --md-footer-bg-color: #0b1113;
+  --md-footer-bg-color--dark: #0b1113;
+}
+
+.md-typeset h1 {
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  color: var(--md-default-fg-color);
+}
+
+.md-typeset .md-button {
+  border-radius: 0.4rem;
+  margin: 0 0.4rem 0.4rem 0;
+}
+
+.md-typeset .pyrn-facts {
+  color: var(--md-default-fg-color--light);
+  font-size: 0.72rem;
+  margin: 0.8rem 0 1.8rem;
+}
+
+.md-typeset .grid.cards > ul > li {
+  border-radius: 0.5rem;
+}
+
+/* Slow-turning PyRn <-> PyRu ambigram wordmark (pure CSS, zero JS). */
+.pyrn-wordmark {
+  display: inline-block;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.pyrn-flip-n {
+  display: inline-block;
+  transform-origin: 50% 58%;
+  will-change: transform;
+  animation: pyrn-n-to-u 10s ease-in-out infinite;
+}
+
+.pyrn-wordmark:hover .pyrn-flip-n {
+  animation-play-state: paused;
+}
+
+@keyframes pyrn-n-to-u {
+  0%, 35% {
+    transform: rotate(0deg);
+    color: inherit;
+  }
+  50%, 85% {
+    transform: rotate(180deg);
+    color: var(--md-accent-fg-color);
+  }
+  100% {
+    transform: rotate(360deg);
+    color: inherit;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pyrn-flip-n {
+    animation: none;
+  }
+}
