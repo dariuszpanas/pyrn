@@ -1,0 +1,242 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pyrn-release
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  validate-and-sdist:
+    name: Validate & Build sdist
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+
+      - name: Verify tag matches package versions
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG_VER="${GITHUB_REF_NAME#v}"
+          PY_VER=$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"])')
+          RS_VER=$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml","rb"))["workspace"]["package"]["version"])')
+          echo "tag=$TAG_VER pyproject=$PY_VER cargo=$RS_VER"
+          test "$TAG_VER" = "$PY_VER"
+          test "$TAG_VER" = "$RS_VER"
+
+      - name: Format, clippy, and pure-core checks
+        run: |
+          cargo fmt --all -- --check
+          cargo check -p pyrn-core --no-default-features --locked
+          cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Run release tests with pytest + coverage
+        shell: bash
+        run: |
+          uv venv .ci-venv --python 3.12
+          uv pip install --python .ci-venv pytest coverage
+          PYRN_TEST_PYTHON="$(pwd)/.ci-venv/bin/python" cargo test --workspace --release --locked
+
+      - name: Verify documentation build and links
+        run: |
+          uvx --from "zensical>=0.0.20" zensical build --strict --clean
+          python3 scripts/check_docs.py
+          rm -rf site
+
+      - name: Build Python source distribution
+        run: uv build --sdist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-sdist
+          path: dist/*.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+  build-matrix:
+    name: Build (${{ matrix.target }})
+    needs: validate-and-sdist
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-musl
+            wheel_platform: manylinux_2_17_x86_64.manylinux2014_x86_64.musllinux_1_1_x86_64
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+            wheel_platform: manylinux_2_17_aarch64.manylinux2014_aarch64.musllinux_1_1_aarch64
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+            wheel_platform: macosx_11_0_x86_64
+          - os: macos-15
+            target: aarch64-apple-darwin
+            wheel_platform: macosx_11_0_arm64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            wheel_platform: win_amd64
+          - os: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            wheel_platform: win_arm64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install musl toolchain on Linux
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install --yes musl-tools
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.target }}
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+
+      - name: Build standalone release binary
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          if [[ "$RUNNER_OS" == Linux ]]; then
+            export "CC_${TARGET//-/_}=musl-gcc"
+          elif [[ "$RUNNER_OS" == macOS ]]; then
+            export MACOSX_DEPLOYMENT_TARGET="11.0"
+          fi
+          cargo build --locked --release --target "$TARGET" -p pyrn-cli
+          BIN="target/$TARGET/release/pyrn"
+          if [[ "$RUNNER_OS" == Windows ]]; then
+            BIN+=".exe"
+          fi
+          test -f "$BIN"
+          "$BIN" --version
+
+      - name: Stage standalone archive and build zero-dependency wheel
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          PYRN_WHEEL_PLATFORM: ${{ matrix.wheel_platform }}
+        run: |
+          set -euo pipefail
+          VERSION=$(uv run --no-project --python 3.12 python -c 'import tomllib; print(tomllib.load(open("Cargo.toml","rb"))["workspace"]["package"]["version"])')
+          mkdir -p native
+          if [[ "$RUNNER_OS" == Windows ]]; then
+            BIN="$(pwd -W)/target/$TARGET/release/pyrn.exe"
+            ARCHIVE="native/pyrn-${VERSION}-${TARGET}.zip"
+            uv run --no-project --python 3.12 python -c "import zipfile, sys; z=zipfile.ZipFile(sys.argv[1],'w',zipfile.ZIP_DEFLATED); z.write(sys.argv[2],'pyrn.exe'); z.write('LICENSE','LICENSE'); z.write('README.md','README.md'); z.close()" "$ARCHIVE" "target/$TARGET/release/pyrn.exe"
+          else
+            BIN="$(pwd)/target/$TARGET/release/pyrn"
+            ARCHIVE="native/pyrn-${VERSION}-${TARGET}.tar.gz"
+            tar -czf "$ARCHIVE" -C "target/$TARGET/release" pyrn -C "$(pwd)" LICENSE README.md
+          fi
+          export PYRN_PREBUILT_BINARY="$BIN"
+          uv build --wheel
+          ls -la dist/ native/
+          WHEEL=$(ls dist/*.whl | head -n 1)
+          uv run --no-project --with "$WHEEL" pyrn --version
+          uv run --no-project --with "$WHEEL" python -m pyrn --version
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: standalone-${{ matrix.target }}
+          path: native/*
+          if-no-files-found: error
+          retention-days: 7
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheel-${{ matrix.target }}
+          path: dist/*.whl
+          if-no-files-found: error
+          retention-days: 7
+
+  github-release:
+    name: Create GitHub Release
+    needs: [validate-and-sdist, build-matrix]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-sdist
+          path: release-assets/
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wheel-*
+          merge-multiple: true
+          path: release-assets/
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: standalone-*
+          merge-multiple: true
+          path: release-assets/
+      - name: Generate SHA-256 checksums and publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          cd release-assets
+          sha256sum * > "pyrn-${RELEASE_TAG}-sha256.txt"
+          ls -la
+          gh release create "$RELEASE_TAG" * \
+            --verify-tag \
+            --title "pyrn ${RELEASE_TAG}" \
+            --generate-notes
+
+  publish-pypi:
+    name: Publish to PyPI (Trusted Publisher)
+    needs: [validate-and-sdist, build-matrix]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: pypi
+      url: https://pypi.org/project/pyrn/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-sdist
+          path: dist/
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wheel-*
+          merge-multiple: true
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
