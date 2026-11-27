@@ -13,9 +13,71 @@ and exit codes.
 - **Building from source:** Rust stable toolchain (edition 2024) and `uv` if building the Python
   wheel.
 
-## Install or build `pyrn`
+## Install `pyrn`
 
-### Install the Rust CLI with Cargo
+### Standalone installer
+
+On Linux and macOS:
+
+```bash
+curl -fsSL https://dariuszpanas.github.io/pyrn/install.sh | sh
+```
+
+With GNU Wget:
+
+```bash
+wget -qO- https://dariuszpanas.github.io/pyrn/install.sh | sh
+```
+
+On Windows PowerShell:
+
+```powershell
+irm https://dariuszpanas.github.io/pyrn/install.ps1 | iex
+```
+
+Standalone releases cover x86-64 and ARM64 on Linux (static musl), macOS, and Windows. Inspect
+the [shell installer](install.sh) or [PowerShell installer](install.ps1) before running. The
+installer verifies the versioned SHA-256 manifest, the downloaded archive checksum, and the
+executable's reported `pyrn --version` before replacing any previous installation, and refuses to
+overwrite binaries owned by other package managers.
+
+Pin a specific release or override the destination directory:
+
+- Pass `--version X.Y.Z` / `-Version X.Y.Z` (or set `PYRN_VERSION=X.Y.Z` when piping).
+- Pass `--install-dir /absolute/path` / `-InstallDir C:\absolute\path` (or set `PYRN_INSTALL_DIR`;
+  defaults to `~/.local/bin`).
+- Set `PYRN_NO_MODIFY_PATH=1` to manage `PATH` yourself.
+- Pass `--python` / `-Python` (or set `PYRN_INSTALL_METHOD=python`) to install via `uv tool`.
+- Private mirrors may set `PYRN_RELEASE_BASE_URL` to a trusted HTTPS releases base.
+
+### Python with `uv` or `pip` (PyPI)
+
+`pyrn` ships zero-dependency `py3-none-<platform>` wheels on PyPI (no PyO3, no Python runtime
+dependencies):
+
+```bash
+# Run on demand without installing globally
+uvx pyrn --version
+
+# Install globally as a uv tool
+uv tool install pyrn
+pyrn --version
+
+# Or install into an active virtual environment
+pip install pyrn
+python -m pyrn --version
+```
+
+### Cargo (crates.io)
+
+With a Rust toolchain (edition 2024), install the standalone `pyrn` executable from crates.io:
+
+```bash
+cargo install --locked pyrn-cli
+pyrn --version
+```
+
+### Build from source
 
 From a reviewed checkout of the repository:
 
@@ -24,39 +86,12 @@ cargo install --locked --path crates/pyrn-cli
 pyrn --version
 ```
 
-Or build the release binary in place without installing globally:
-
-```sh
-cargo build --release --workspace
-./target/release/pyrn --version
-```
-
-### Build and install the zero-dependency Python wheel
-
-The wheel hook (`scripts/native_wheel.py`) automatically compiles `pyrn-cli` or reuses an already
-built release executable via `PYRN_PREBUILT_BINARY`:
-
-On Linux and macOS:
+Or build the release binary and zero-dependency wheel in place:
 
 ```sh
 cargo build --release --locked -p pyrn-cli
 PYRN_PREBUILT_BINARY=target/release/pyrn uv build --wheel
-uv tool install dist/pyrn-*.whl
-pyrn --version
 ```
-
-On Windows PowerShell:
-
-```powershell
-cargo build --release --locked -p pyrn-cli
-$env:PYRN_PREBUILT_BINARY = "target\release\pyrn.exe"
-uv build --wheel
-uv tool install (Get-ChildItem dist\pyrn-*.whl | Select-Object -First 1).FullName
-pyrn --version
-```
-
-You can also invoke the wheel as `python -m pyrn --version` inside any virtual environment where
-it is installed.
 
 ## 1. Inspect your environment with `pyrn doctor`
 

@@ -34,7 +34,7 @@ Measured on an anonymized 12,001-test Django + Ray codebase (16-physical-core wo
 
 ## Documentation
 
-- [Get started](https://dariuszpanas.github.io/pyrn/getting-started.html) — build from Cargo or wheel, run `pyrn doctor`, preview a TIA plan, and start a warm daemon.
+- [Get started](https://dariuszpanas.github.io/pyrn/getting-started.html) — install via standalone script, PyPI (`uvx`/`pip`), or Cargo, then run `pyrn doctor`, `pyrn plan`, and a warm daemon.
 - [Assess and adopt in CI](https://dariuszpanas.github.io/pyrn/ci-adoption.html) — move from `pytest-xdist` / C-trace coverage to a staged `pyrn` rollout.
 - [Recipes](https://dariuszpanas.github.io/pyrn/recipes.html) — copy-paste workflows for warm local loops, Django + SQLite, GitHub Actions, container pods, and `--cov-sysmon`.
 - [Command reference](https://dariuszpanas.github.io/pyrn/commands.html) — complete flags, defaults, and exit codes for every subcommand.
@@ -44,32 +44,32 @@ Measured on an anonymized 12,001-test Django + Ray codebase (16-physical-core wo
 
 ## Quickstart
 
-### Build & Test (Rust)
+### Install `pyrn`
+
+**Standalone installer (no Python or Rust required):**
 
 ```sh
-# 1. Verify pure-Rust zero-FFI in-memory library build
-cargo check -p pyrn-core --no-default-features
-
-# 2. Lint and run full workspace test suite
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace --release
-
-# 3. Build release CLI binary
-cargo build --release --workspace
+# Linux / macOS
+curl -fsSL https://dariuszpanas.github.io/pyrn/install.sh | sh
 ```
-
-### Build Zero-Dependency Python Wheel
-
-```sh
-# Reuses an existing release binary (fast) or compiles pyrn-cli from source automatically:
-PYRN_PREBUILT_BINARY=target/release/pyrn uv build --wheel
-```
-
-On Windows PowerShell:
 
 ```powershell
-$env:PYRN_PREBUILT_BINARY = "target\release\pyrn.exe"
-uv build --wheel
+# Windows PowerShell
+irm https://dariuszpanas.github.io/pyrn/install.ps1 | iex
+```
+
+**Python / PyPI (zero-dependency native wheel):**
+
+```sh
+uvx pyrn --version        # run on demand
+uv tool install pyrn      # global CLI install
+pip install pyrn          # inside a virtual environment
+```
+
+**Rust / Cargo (crates.io):**
+
+```sh
+cargo install --locked pyrn-cli
 ```
 
 ### Everyday CLI Usage

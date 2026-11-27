@@ -15,6 +15,8 @@ SITE = "https://dariuszpanas.github.io/pyrn/"
 SITE_PREFIX = "/pyrn/"
 LOGO_REL = Path("assets/branding/pyrn_logo.png")
 WORDMARK_REL = Path("assets/branding/pyrn_wordmark.svg")
+INSTALL_SH_REL = Path("install.sh")
+INSTALL_PS1_REL = Path("install.ps1")
 LOGO_URL = f"{SITE}assets/branding/pyrn_logo.png"
 
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
@@ -160,10 +162,10 @@ def check_site(site: Path, readme: Path) -> int:
     if not pages:
         raise ValueError("build the documentation before checking links (no HTML files in site/)")
 
-    for asset_rel in (LOGO_REL, WORDMARK_REL):
+    for asset_rel in (LOGO_REL, WORDMARK_REL, INSTALL_SH_REL, INSTALL_PS1_REL):
         asset_path = (site / asset_rel).resolve()
         if not asset_path.is_file() or asset_path.stat().st_size == 0:
-            raise ValueError(f"missing or empty branding asset in built site: {asset_path}")
+            raise ValueError(f"missing or empty site asset in built site: {asset_path}")
 
     checked = 0
 
