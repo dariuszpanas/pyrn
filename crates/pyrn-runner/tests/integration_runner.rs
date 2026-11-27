@@ -666,3 +666,86 @@ async fn multi_fault_flake_rerun_recovers_all_siblings_after_crash() {
     assert_eq!(find("test_crash_2").outcome, TestOutcome::Crashed);
     assert_eq!(find("test_crash_2").attempts, 2);
 }
+
+#[tokio::test]
+async fn cov_sysmon_captures_import_time_definitions_and_relative_cov_out() {
+    let Some(python) = find_test_python() else {
+        return;
+    };
+    let has_cov = std::process::Command::new(&python)
+        .args(["-c", "import coverage"])
+        .output()
+        .is_ok_and(|o| o.status.success());
+    if !has_cov {
+        return;
+    }
+
+    let repo = tempfile::tempdir().expect("temp repo");
+    let cache_dir = tempfile::tempdir().expect("cache dir");
+
+    fs::write(
+        repo.path().join("pyproject.toml"),
+        "[tool.pytest.ini_options]\ntestpaths = [\"tests\"]\n\n[tool.coverage.run]\nsource = [\"pkg\"]\n",
+    )
+    .unwrap();
+    fs::create_dir_all(repo.path().join("pkg")).unwrap();
+    fs::create_dir_all(repo.path().join("tests")).unwrap();
+    fs::write(repo.path().join("pkg/__init__.py"), "VERSION = '1.0'\n").unwrap();
+    fs::write(
+        repo.path().join("pkg/calc.py"),
+        concat!(
+            "FACTOR = 2\n\n",
+            "class Multiplier:\n",
+            "    def scale(self, x: int) -> int:\n",
+            "        return x * FACTOR\n",
+        ),
+    )
+    .unwrap();
+    fs::write(
+        repo.path().join("tests/test_calc.py"),
+        concat!(
+            "from pkg.calc import Multiplier\n\n",
+            "def test_scale():\n",
+            "    assert Multiplier().scale(21) == 42\n",
+        ),
+    )
+    .unwrap();
+
+    let cov_out = repo.path().join(".coverage");
+    let cfg = RunConfig {
+        project_root: repo.path().to_path_buf(),
+        python_exe: python.clone(),
+        targets: vec!["tests/test_calc.py".to_owned()],
+        workers: Some(1),
+        role: SlotRole::Verify,
+        cache_dir: Some(cache_dir.path().to_path_buf()),
+        cov_sysmon: true,
+        cov_out: Some(PathBuf::from(".coverage")),
+        test_timeout_secs: 20,
+        ..RunConfig::default()
+    };
+
+    let rep = execute_cold_run(&cfg).await.expect("cov-sysmon run");
+    assert_eq!(rep.exit_code, 0, "unexpected run report: {rep:?}");
+    assert_eq!(rep.passed, 1, "unexpected run report: {rep:?}");
+    assert!(cov_out.is_file(), "merged .coverage file must exist");
+
+    let json_out = repo.path().join("cov.json");
+    let status = std::process::Command::new(&python)
+        .args(["-m", "coverage", "json", "-o", json_out.to_str().unwrap()])
+        .current_dir(repo.path())
+        .env("COVERAGE_FILE", &cov_out)
+        .status()
+        .expect("coverage json");
+    assert!(status.success());
+
+    let parsed: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&json_out).unwrap()).unwrap();
+    let pct = parsed["totals"]["percent_covered"]
+        .as_f64()
+        .expect("percent_covered");
+    assert!(
+        pct >= 99.9,
+        "import-time class/def/constant lines must be covered under --cov-sysmon, got {pct}%: {parsed}"
+    );
+}

@@ -259,23 +259,31 @@ pub async fn merge_coverage_shards(
         return Ok(None);
     }
 
-    if let Some(parent) = target_cov_file.parent() {
+    let resolved_target = if target_cov_file.is_absolute() {
+        target_cov_file.to_path_buf()
+    } else {
+        project_root.join(target_cov_file)
+    };
+
+    if let Some(parent) = resolved_target.parent()
+        && !parent.as_os_str().is_empty()
+    {
         fs::create_dir_all(parent)?;
     }
-    let _ = fs::remove_file(target_cov_file);
+    let _ = fs::remove_file(&resolved_target);
 
     let mut cmd = tokio::process::Command::new(python_exe);
     cmd.arg("-m")
         .arg("coverage")
         .arg("combine")
         .arg("--data-file")
-        .arg(target_cov_file);
+        .arg(&resolved_target);
     for s in &shards {
         cmd.arg(s);
     }
     cmd.current_dir(project_root)
         .env("COVERAGE_CORE", "sysmon")
-        .env("COVERAGE_FILE", target_cov_file)
+        .env("COVERAGE_FILE", &resolved_target)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
 
@@ -291,7 +299,7 @@ pub async fn merge_coverage_shards(
 
     // Clean up ephemeral shard directory after successful merge.
     let _ = fs::remove_dir_all(shard_dir);
-    Ok(Some(target_cov_file.to_path_buf()))
+    Ok(Some(resolved_target))
 }
 
 /// Generate a random 128-bit hex session auth token for loopback TCP handshakes.

@@ -43,5 +43,5 @@ steps from `pytest-xdist` and C-trace coverage.
 
 ## Project information
 
-`pyrn` is beta (`v0.1.0`). See the [benchmarks](benchmarks.md), [changelog](changelog.md),
+`pyrn` is beta (`v0.1.1`). See the [benchmarks](benchmarks.md), [changelog](changelog.md),
 [security model](security.md), and [contributing guide](contributing.md).

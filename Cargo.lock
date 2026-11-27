@@ -724,7 +724,7 @@ dependencies = [
 
 [[package]]
 name = "pyrn-cli"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -738,7 +738,7 @@ dependencies = [
 
 [[package]]
 name = "pyrn-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "blake3",
@@ -754,7 +754,7 @@ dependencies = [
 
 [[package]]
 name = "pyrn-runner"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "blake3",

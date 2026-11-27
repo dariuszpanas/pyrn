@@ -8,6 +8,19 @@ This project follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-26
+
+### Fixed
+
+- **Import-time `--cov-sysmon` coverage parity (`crates/pyrn-runner`)**: start worker coverage
+  controllers at worker boot before importing `pytest`, framework hooks (`django.setup()`),
+  `conftest.py`, or collecting test modules, and keep coverage active through module/class/function
+  fixture teardown so top-level imports, `class`/`def` definitions, constants, and teardown paths
+  match `pytest-cov` totals under CPython 3.12+ `sys.monitoring`.
+- **Relative `--cov-out` path handling (`crates/pyrn-runner`)**: resolve relative `--cov-out`
+  paths (including bare filenames such as `--cov-out .coverage`) against the project root before
+  creating parent directories and invoking `coverage combine`.
+
 ## [0.1.0] - 2026-11-26
 
 First public beta release of `pyrn`.

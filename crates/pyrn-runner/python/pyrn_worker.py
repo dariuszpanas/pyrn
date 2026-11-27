@@ -1209,11 +1209,22 @@ def main() -> int:
     sqlite_template_path: str = cfg.get("sqlite_template_path") or ""
     extra_pytest_args: list[str] = list(cfg.get("extra_pytest_args") or [])
     pure_autouse_guards: frozenset[str] = frozenset(cfg.get("pure_autouse_guards") or ())
-    cov_data_file: str | None = cfg.get("cov_data_file")
+    boot_cov_data_file: str | None = cfg.get("cov_data_file")
+    cov_data_file: str | None = boot_cov_data_file
 
     os.chdir(project_root)
     if str(project_root) not in sys.path:
         sys.path.insert(0, str(project_root))
+
+    # Start coverage BEFORE importing pytest/Django/conftest or collecting test modules
+    # so top-level imports, class/function definitions, and module constants are measured
+    # with exact pytest-cov parity under CPython 3.12+ sys.monitoring.
+    cov_ctrl = _create_coverage_controller(cov_data_file)
+    cov_running = False
+    if cov_ctrl is not None:
+        with contextlib.suppress(Exception):
+            cov_ctrl.start()
+            cov_running = True
 
     db_stats: dict[str, Any] = {
         "db_setup_ms": 0.0,
@@ -1266,7 +1277,6 @@ def main() -> int:
     keepalive_sentinel = _make_keepalive_item(session)
     module_safe_cache: dict[Path, bool] = {}
     tracer = _WorkerTracer(root=project_root)
-    cov_ctrl = _create_coverage_controller(cov_data_file)
 
     boot_ms = round((time.perf_counter() - t_boot0) * 1000.0, 3)
 
@@ -1323,6 +1333,23 @@ def main() -> int:
 
             py_config.option.markexpr = markers or ""
             py_config.option.keyword = keyword or ""
+
+            # Ensure coverage is active BEFORE collection so module-import lines are captured.
+            effective_cov_file = unit_cov_file or boot_cov_data_file
+            active_cov = cov_ctrl if effective_cov_file else None
+            if effective_cov_file and (active_cov is None or effective_cov_file != cov_data_file):
+                if cov_ctrl is not None and cov_running:
+                    with contextlib.suppress(Exception):
+                        cov_ctrl.stop()
+                        cov_ctrl.save()
+                    cov_running = False
+                active_cov = _create_coverage_controller(effective_cov_file)
+                cov_ctrl = active_cov
+                cov_data_file = effective_cov_file
+            if active_cov is not None and not cov_running:
+                with contextlib.suppress(Exception):
+                    active_cov.start()
+                    cov_running = True
 
             worker_plugin.reset_unit()
             _prepare_fixturemanager_for_unit(session, py_config)
@@ -1394,16 +1421,6 @@ def main() -> int:
                 }
             )
 
-            # Activate coverage controller for this unit if `--cov-sysmon` is requested.
-            active_cov = cov_ctrl
-            if unit_cov_file and (active_cov is None or unit_cov_file != cov_data_file):
-                active_cov = _create_coverage_controller(unit_cov_file)
-                cov_ctrl = active_cov
-                cov_data_file = unit_cov_file
-            if active_cov is not None:
-                with contextlib.suppress(Exception):
-                    active_cov.start()
-
             if trace_enabled:
                 tracer.resume(granularity=trace_granularity, capture_symbols=trace_symbols)
             else:
@@ -1457,14 +1474,15 @@ def main() -> int:
                     chan.send(payload)
             finally:
                 tracer.pause()
-                if active_cov is not None:
+                # Tear down module/class/function fixtures while coverage is still active so
+                # fixture-teardown paths are measured, while keeping session fixtures warm.
+                with contextlib.suppress(Exception):
+                    session._setupstate.teardown_exact(keepalive_sentinel)
+                if active_cov is not None and cov_running:
                     with contextlib.suppress(Exception):
                         active_cov.stop()
                         active_cov.save()
-
-            # Tear down module/class/function fixtures cleanly while keeping session fixtures warm.
-            with contextlib.suppress(Exception):
-                session._setupstate.teardown_exact(keepalive_sentinel)
+                    cov_running = False
 
             if sqlite_template_path:
                 _reset_sqlite_from_template_if_active(sqlite_template_path)
@@ -1482,6 +1500,10 @@ def main() -> int:
             )
     finally:
         tracer.uninstall()
+        if cov_ctrl is not None and cov_running:
+            with contextlib.suppress(Exception):
+                cov_ctrl.stop()
+                cov_ctrl.save()
         with contextlib.suppress(Exception):
             session._setupstate.teardown_exact(None)
         with contextlib.suppress(Exception):

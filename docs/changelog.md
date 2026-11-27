@@ -7,6 +7,21 @@ All notable changes to `pyrn` are recorded here and summarized in the root
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-26
+
+### Fixed
+
+- **Import-time `--cov-sysmon` coverage parity (`crates/pyrn-runner`):**
+  - Start the `coverage.Coverage` controller at worker boot before importing `pytest`, framework
+    setup hooks, `conftest.py`, or running test collection, and keep it active through
+    module/class/function fixture teardown so top-level `import`, `class`, `def`, and module
+    constant statements are recorded with `pytest-cov` parity under CPython 3.12+ `sys.monitoring`.
+  - Scope per-unit coverage activation cleanly so warm daemon workers do not accidentally reuse a
+    previous request's coverage controller when a subsequent run disables `--cov-sysmon`.
+- **Relative `--cov-out` path resolution (`crates/pyrn-runner`):**
+  - Resolve relative `--cov-out` paths (such as bare `--cov-out .coverage`) against `project_root`
+    and skip empty parent directory creation before calling `coverage combine`.
+
 ## [0.1.0] - 2026-11-26
 
 First public beta release of `pyrn`.

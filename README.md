@@ -138,6 +138,6 @@ Downstream Rust tools can depend on `pyrn-core` with `default-features = false` 
 
 ## Project Status
 
-`pyrn` is beta (`v0.1.0`). See the [Security model](https://dariuszpanas.github.io/pyrn/security.html), [Contributing guide](https://dariuszpanas.github.io/pyrn/contributing.html), [Troubleshooting guide](https://dariuszpanas.github.io/pyrn/troubleshooting.html), and [Changelog](https://dariuszpanas.github.io/pyrn/changelog.html).
+`pyrn` is beta (`v0.1.1`). See the [Security model](https://dariuszpanas.github.io/pyrn/security.html), [Contributing guide](https://dariuszpanas.github.io/pyrn/contributing.html), [Troubleshooting guide](https://dariuszpanas.github.io/pyrn/troubleshooting.html), and [Changelog](https://dariuszpanas.github.io/pyrn/changelog.html).
 
 Licensed under [Apache-2.0](https://github.com/dariuszpanas/pyrn/blob/main/LICENSE).
