@@ -53,41 +53,153 @@
   border-radius: 0.5rem;
 }
 
-/* Slow-turning PyRn <-> PyRu ambigram wordmark (pure CSS, zero JS). */
+/* One-shot PyRust -> PyRun -> PyRn forward-flip wordmark (pure CSS, zero JS). */
 .pyrn-wordmark {
   display: inline-block;
   font-weight: 800;
   letter-spacing: -0.03em;
 }
 
-.pyrn-flip-n {
+.pyrn-track {
+  display: inline-flex;
+  align-items: baseline;
+  perspective: 420px;
+}
+
+.pyrn-r,
+.pyrn-u,
+.pyrn-st,
+.pyrn-n {
   display: inline-block;
-  transform-origin: 50% 58%;
-  will-change: transform;
-  animation: pyrn-n-to-u 10s ease-in-out infinite;
+  transform-origin: 50% 60%;
+  backface-visibility: visible;
+  will-change: transform, opacity, max-width;
 }
 
-.pyrn-wordmark:hover .pyrn-flip-n {
-  animation-play-state: paused;
+.pyrn-u,
+.pyrn-st {
+  overflow-x: clip;
+  overflow-y: visible;
+  white-space: nowrap;
+  user-select: none;
 }
 
-@keyframes pyrn-n-to-u {
-  0%, 35% {
-    transform: rotate(0deg);
-    color: inherit;
-  }
-  50%, 85% {
-    transform: rotate(180deg);
+.pyrn-n {
+  overflow-x: clip;
+  overflow-y: visible;
+  white-space: nowrap;
+}
+
+.pyrn-r {
+  animation: pyrn-morph-r 4.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.pyrn-u {
+  animation: pyrn-morph-u 4.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.pyrn-st {
+  animation: pyrn-morph-st 4.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.pyrn-n {
+  animation: pyrn-morph-n 4.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* Act 1 (0–24%): PyRust | Act 2 (38–62%): PyRun | Act 3 (82–100%): PyRn */
+@keyframes pyrn-morph-r {
+  0%, 26% {
     color: var(--md-accent-fg-color);
   }
-  100% {
-    transform: rotate(360deg);
+  42%, 100% {
     color: inherit;
+  }
+}
+
+@keyframes pyrn-morph-st {
+  0%, 24% {
+    max-width: 2.2ch;
+    opacity: 1;
+    color: var(--md-accent-fg-color);
+    transform: rotateX(0deg);
+  }
+  33% {
+    max-width: 1.4ch;
+    opacity: 0;
+    color: var(--md-accent-fg-color);
+    transform: rotateX(-105deg);
+  }
+  39%, 100% {
+    max-width: 0;
+    opacity: 0;
+    transform: rotateX(-105deg);
+  }
+}
+
+@keyframes pyrn-morph-u {
+  0%, 24% {
+    max-width: 1.25ch;
+    opacity: 1;
+    color: var(--md-accent-fg-color);
+    transform: translateX(0) rotateX(0deg);
+  }
+  38%, 62% {
+    max-width: 1.25ch;
+    opacity: 1;
+    color: inherit;
+    transform: translateX(0) rotateX(0deg);
+  }
+  74% {
+    max-width: 0.9ch;
+    opacity: 0.35;
+    color: var(--md-accent-fg-color);
+    transform: translateX(0.16em) rotateX(-180deg);
+  }
+  83%, 100% {
+    max-width: 0;
+    opacity: 0;
+    color: var(--md-accent-fg-color);
+    transform: translateX(0.22em) rotateX(-180deg);
+  }
+}
+
+@keyframes pyrn-morph-n {
+  0%, 26% {
+    max-width: 0;
+    opacity: 0;
+    transform: rotateX(95deg);
+  }
+  38%, 62% {
+    max-width: 1.25ch;
+    opacity: 1;
+    color: inherit;
+    transform: rotateX(0deg);
+  }
+  75% {
+    max-width: 1.25ch;
+    opacity: 1;
+    color: var(--md-accent-fg-color);
+    transform: rotateX(0deg);
+  }
+  88%, 100% {
+    max-width: 1.25ch;
+    opacity: 1;
+    color: inherit;
+    transform: rotateX(0deg);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pyrn-flip-n {
+  .pyrn-r,
+  .pyrn-n {
     animation: none;
+    color: inherit;
+    opacity: 1;
+    max-width: none;
+    transform: none;
+  }
+  .pyrn-u,
+  .pyrn-st {
+    display: none;
   }
 }
