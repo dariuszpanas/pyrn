@@ -4,7 +4,7 @@ hide:
   - toc
 ---
 
-# <span class="pyrn-wordmark" aria-label="PyRn"><span class="pyrn-track" aria-hidden="true"><span>Py</span><span class="pyrn-r">R</span><span class="pyrn-pivot"><span class="pyrn-face pyrn-face-n">n</span><span class="pyrn-face pyrn-face-u">u</span></span><span class="pyrn-st">st</span><span class="pyrn-tail-n">n</span></span></span> documentation
+# <span class="pyrn-wordmark" aria-label="PyRn"><span class="pyrn-track" aria-hidden="true"><span>Py</span><span class="pyrn-r">R</span><span class="pyrn-pivot-wrap"><span class="pyrn-pivot"><span class="pyrn-face pyrn-face-n">n</span><span class="pyrn-face pyrn-face-u">u</span></span></span><span class="pyrn-st">st</span><span class="pyrn-tail-n">n</span></span></span> documentation
 
 ![pyrn terminal P logo](assets/branding/pyrn_logo.png){ width="128" height="128" }
 
