@@ -8,6 +8,21 @@ This project follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-11-27
+
+### Fixed
+
+- **Fail-closed TIA on git diff errors (`crates/pyrn-runner`)**:
+  - Fall back to `FullVerified` (running the entire suite) instead of selecting zero tests when
+    `git merge-base` or `git diff` against `--base` fails (e.g. shallow CI checkouts).
+- **Exact `merge-base` diffing for branches (`crates/pyrn-core`)**:
+  - Resolve `git merge-base <base> HEAD` whenever `--base` is not `HEAD` so PR merge commits and
+    branches behind `origin/main` diff only their own changes.
+- **Bypass CAS reads on TIA `FullVerified` fallback (`crates/pyrn-runner`)**:
+  - Skip serving cached passing hits whenever TIA fails closed to `FullVerified` (e.g. unmapped
+    non-Python file or global trigger change), executing all selected tests cold while still
+    seeding fresh cache entries afterwards.
+
 ## [0.2.1] - 2026-11-26
 
 ### Fixed

@@ -16,7 +16,7 @@ Pin to a full commit SHA (recommended for supply-chain hygiene) or a release tag
 ```yaml
 - name: Run pytest suite via pyrn
   id: pyrn
-  uses: dariuszpanas/pyrn@v0.2.1
+  uses: dariuszpanas/pyrn@v0.2.2
   with:
     command: run
     workers: "4"
@@ -45,7 +45,7 @@ Combine `actions/cache@v4` with `tia: "true"` and `cache: "true"` to skip unaffe
       pyrn-cas-${{ runner.os }}-py312-${{ hashFiles('uv.lock') }}-
 
 - name: Run impacted tests with CAS cache
-  uses: dariuszpanas/pyrn@v0.2.1
+  uses: dariuszpanas/pyrn@v0.2.2
   with:
     command: run
     tia: "true"
@@ -92,7 +92,7 @@ See the copy-paste templates under [`examples/`](https://github.com/dariuszpanas
 | `json-out` | `""` | Path to persist the full `RunReport` JSON. |
 | `plain` | `"false"` | Disable ANSI colors and Unicode box borders (`--plain`). |
 | `extra-args` | `""` | Whitespace-separated extra pytest arguments forwarded after `--`. |
-| `version` | `"0.2.1"` | Verified release version of `pyrn` to install. |
+| `version` | `"0.2.2"` | Verified release version of `pyrn` to install. |
 | `step-summary` | `"true"` | Append a structured Markdown summary table to `$GITHUB_STEP_SUMMARY`. |
 
 ## Action outputs

@@ -31,7 +31,7 @@ jobs:
             pyrn-cas-${{ runner.os }}-py312-${{ hashFiles('uv.lock') }}-
 
       - name: Preview impacted tests (pure in-memory TIA)
-        uses: dariuszpanas/pyrn@v0.2.1
+        uses: dariuszpanas/pyrn@v0.2.2
         with:
           command: plan
           base: origin/${{ github.base_ref }}
@@ -39,7 +39,7 @@ jobs:
           tier: strict
 
       - name: Run impacted tests with SQLite WAL CAS cache
-        uses: dariuszpanas/pyrn@v0.2.1
+        uses: dariuszpanas/pyrn@v0.2.2
         with:
           command: run
           tia: "true"
