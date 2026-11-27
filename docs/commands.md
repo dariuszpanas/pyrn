@@ -1,6 +1,6 @@
 # Command reference
 
-`pyrn` exposes six subcommand groups covering test execution, pure in-memory Test Impact Analysis, warm worker pool lifecycle, content-addressed cache maintenance, environment diagnostics, and read-only Git history replay.
+`pyrn` exposes nine subcommand groups covering test execution, pure in-memory Test Impact Analysis, warm worker pool lifecycle, content-addressed cache maintenance, configuration inspection/scaffolding, environment diagnostics, read-only Git history replay, self-management, and shell completions.
 
 Run `pyrn <command> --help` (or `pyrn <group> <subcommand> --help`) to inspect the exact options supported by your installed binary.
 
@@ -15,14 +15,20 @@ Run `pyrn <command> --help` (or `pyrn <group> <subcommand> --help`) to inspect t
 | [`pyrn daemon stop`](#pyrn-daemon-stop) | Gracefully shut down the active warm daemon and its worker processes. | No | No |
 | [`pyrn cache status`](#pyrn-cache-status) | Show SQLite WAL CAS cache entry counts, cumulative hits, and disk footprint. | No | No |
 | [`pyrn cache prune`](#pyrn-cache-prune) | Remove stale CAS cache entries older than `--max-age-days`. | No | No |
+| [`pyrn config show`](#pyrn-config) | Display effective merged configuration from `pyproject.toml` and `.pyrn.toml`. | No | No |
+| [`pyrn config init`](#pyrn-config) | Scaffold a starter `.pyrn.toml` in the repository root. | No | No |
 | [`pyrn doctor`](#pyrn-doctor) | Inspect worker resource budget, Python/pytest/coverage/`sys.monitoring`, config, cache, daemon, and slow history. | No | No |
 | [`pyrn replay-git`](#pyrn-replay-git) | Replay recent non-merge commits (read-only) to measure TIA recall and reduction. | No | Yes (read-only) |
+| [`pyrn self status`](#pyrn-self) | Show version, executable path, target triple, and detected install channel. | No | No |
+| [`pyrn self update`](#pyrn-self) | Update `pyrn` via the detected installation channel (`--dry-run`, `--version`). | No | No |
+| [`pyrn completion`](#pyrn-completion) | Emit shell completion scripts (`bash`, `zsh`, `fish`, `powershell`, `elvish`). | No | No |
 
-Global flags accepted on the root command:
+Global flags accepted on every command:
 
 | Flag | Short | Effect |
 | --- | --- | --- |
-| `--help` | `-h` | Print help and exit `0`. |
+| `--plain` | — | Disable ANSI colors and Unicode box borders in human-readable output. |
+| `--help` | `-h` | Print Rich-formatted help and exit `0`. |
 | `--version` | `-V` | Print package version and exit `0`. |
 
 ## Exit codes and stream contract
@@ -284,9 +290,45 @@ pyrn replay-git [OPTIONS]
 
 ---
 
+## `pyrn config`
+
+Inspect effective repository configuration or scaffold a starter `.pyrn.toml`.
+
+```sh
+pyrn config show --repo . [--json]
+pyrn config init --repo . [--force] [--json]
+```
+
+- `config show` merges `pyproject.toml` (`[tool.pytest.ini_options]`, `[tool.hatch]`, `[tool.pyrn]`) with `.pyrn.toml` / `pyrn.toml` and prints the active settings.
+- `config init` writes a commented `.pyrn.toml` using detected `testpaths`; fails with exit `2` if `.pyrn.toml` already exists unless `--force` is passed.
+
+---
+
+## `pyrn self`
+
+Inspect the current `pyrn` installation or upgrade in place through the detected installation channel (`standalone`, `uv-tool`, or `cargo`).
+
+```sh
+pyrn self status [--json]
+pyrn self update [--dry-run] [--version <VERSION>] [--json]
+```
+
+---
+
+## `pyrn completion`
+
+Generate shell completion scripts to `stdout`:
+
+```sh
+pyrn completion bash       # or zsh, fish, powershell, elvish
+```
+
+---
+
 ## Related guides
 
 - [Getting started](getting-started.md) — installation and first run.
+- [GitHub Actions](github-actions.md) — first-party composite CI action.
 - [Configuration](configuration.md) — `.pyrn.toml`, `pyproject.toml`, and environment variables.
 - [Recipes](recipes.md) — copy-paste workflows for local development, Django, and CI.
 - [Troubleshooting](troubleshooting.md) — diagnosing failures, exit codes, and cache misses.

@@ -8,8 +8,13 @@
 //! - `1`: Deterministic test failure, timeout, or crash (`failed` / `timed_out`).
 //! - `2`: Configuration, CLI argument, or operational/runtime error.
 
+mod presentation;
+mod self_manage;
+
 use anyhow::{Context, Result, bail};
-use clap::{Args, Parser, Subcommand};
+use clap::{Args, CommandFactory, Parser, Subcommand, error::ErrorKind};
+use clap_complete::Shell;
+use presentation::RichOutput;
 use pyrn_core::{
     CasTestCache, ChangedFileSpec, ConfidenceTier, DEFAULT_METRICS_PREFIX, DependencyGraph,
     DynamicTraceIndex, ExecVerdict, GraphConfig, InMemoryTree, PlanOptions, PyrnConfig, SlotRole,
@@ -19,11 +24,13 @@ use pyrn_runner::{
     CacheLayout, DaemonResponse, DaemonServeConfig, RunConfig, TimingHistory, UnifiedRunOptions,
     build_compact_receipt, clean_canonical_path, collect_doctor_report, compute_migrations_hash,
     daemon_status, daemon_stop, emit_metrics_kv, execute_unified_run, format_metrics_kv,
-    print_human_summary, serve_daemon,
+    serve_daemon,
 };
+use self_manage::{inspect_self_status, run_self_update};
 use serde_json::json;
 use std::collections::BTreeMap;
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -34,6 +41,10 @@ use std::process::ExitCode;
     about = "Rust-powered Python/pytest TIA, CAS test cache, and isolated warm execution engine"
 )]
 struct Cli {
+    /// Disable ANSI styling and Unicode box borders in human-readable output.
+    #[arg(long, global = true)]
+    plain: bool,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -48,10 +59,17 @@ enum Commands {
     Daemon(DaemonArgs),
     /// Inspect or prune the multi-process SQLite WAL content-addressed test cache.
     Cache(CacheArgs),
+    /// Inspect effective `.pyrn.toml` / `pyproject.toml` settings or scaffold a starter `.pyrn.toml`.
+    Config(ConfigArgs),
     /// Diagnose host/container worker budget, Python/sysmon environment, cache, and slow-test history.
     Doctor(DoctorArgs),
     /// Replay recent Git commit history (read-only) to measure TIA recall and duration-weighted speedup.
     ReplayGit(ReplayGitArgs),
+    /// Inspect installation channel (`status`) or update `pyrn` in place (`update`).
+    #[command(name = "self")]
+    SelfCmd(SelfArgs),
+    /// Generate shell completion scripts (`bash`, `zsh`, `fish`, `powershell`, `elvish`).
+    Completion(CompletionArgs),
 }
 
 #[derive(Args, Debug)]
@@ -391,6 +409,72 @@ struct ReplayGitArgs {
     json: bool,
 }
 
+#[derive(Args, Debug)]
+struct ConfigArgs {
+    #[command(subcommand)]
+    action: ConfigAction,
+}
+
+#[derive(Subcommand, Debug)]
+enum ConfigAction {
+    /// Show effective merged configuration from `pyproject.toml` and `.pyrn.toml`.
+    Show {
+        /// Target repository root directory.
+        #[arg(long, alias = "project", default_value = ".")]
+        repo: PathBuf,
+        /// Emit structured JSON configuration to stdout.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Scaffold a documented starter `.pyrn.toml` in the repository root.
+    Init {
+        /// Target repository root directory.
+        #[arg(long, alias = "project", default_value = ".")]
+        repo: PathBuf,
+        /// Overwrite an existing `.pyrn.toml`.
+        #[arg(long)]
+        force: bool,
+        /// Emit structured JSON confirmation to stdout.
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Args, Debug)]
+struct SelfArgs {
+    #[command(subcommand)]
+    action: SelfAction,
+}
+
+#[derive(Subcommand, Debug)]
+enum SelfAction {
+    /// Show the installed `pyrn` version, executable path, target triple, and install channel.
+    Status {
+        /// Emit structured JSON status to stdout.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Update `pyrn` using the detected installation channel (standalone, `uv tool`, or Cargo).
+    Update {
+        /// Print the update command that would be executed without modifying the installation.
+        #[arg(long)]
+        dry_run: bool,
+        /// Target release version (e.g., `0.2.0` or `v0.2.0`). Defaults to latest release.
+        #[arg(long)]
+        version: Option<String>,
+        /// Emit structured JSON update result to stdout.
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Args, Debug)]
+struct CompletionArgs {
+    /// Target shell (`bash`, `zsh`, `fish`, `powershell`, or `elvish`).
+    #[arg(value_enum)]
+    shell: Shell,
+}
+
 fn resolve_repo_root(repo: &Path) -> Result<PathBuf> {
     let canonical = fs::canonicalize(repo)
         .with_context(|| format!("failed to resolve repository path '{}'", repo.display()))?;
@@ -522,7 +606,7 @@ fn load_file_durations_csv(path: &Path) -> Result<BTreeMap<String, f64>> {
     Ok(map)
 }
 
-async fn cmd_run(args: RunArgs) -> Result<i32> {
+async fn cmd_run(args: RunArgs, plain: bool) -> Result<i32> {
     let project_root = resolve_repo_root(&args.repo)?;
     let python_exe = resolve_python_exe(&project_root, args.python.as_deref());
     let role = SlotRole::parse(&args.role)?;
@@ -593,13 +677,14 @@ async fn cmd_run(args: RunArgs) -> Result<i32> {
         });
         println!("{}", serde_json::to_string_pretty(&envelope)?);
     } else if !args.ndjson {
-        print_human_summary(&outcome.report, args.top_slow, args.show_failures);
-        if outcome.cache_seeded > 0 {
-            println!(
-                "CAS cache: seeded {} passing test entries",
-                outcome.cache_seeded
-            );
-        }
+        let mut out = RichOutput::new(false, plain);
+        out.render_run_report(
+            &outcome.report,
+            outcome.cache_seeded,
+            args.top_slow,
+            args.show_failures,
+        );
+        print!("{}", out.finish());
     }
 
     if args.metrics_kv && !args.json {
@@ -609,7 +694,7 @@ async fn cmd_run(args: RunArgs) -> Result<i32> {
     Ok(outcome.report.exit_code)
 }
 
-fn cmd_plan(args: PlanArgs) -> Result<i32> {
+fn cmd_plan(args: PlanArgs, plain: bool) -> Result<i32> {
     let project_root = resolve_repo_root(&args.repo)?;
     let role = SlotRole::parse(&args.role)?;
     let tier = ConfidenceTier::parse(&args.tier)?;
@@ -682,54 +767,9 @@ fn cmd_plan(args: PlanArgs) -> Result<i32> {
         });
         println!("{}", serde_json::to_string_pretty(&out)?);
     } else {
-        let imp = &plan.impact;
-        println!(
-            "=== pyrn plan (pure in-memory TIA, tier={}, role={}) ===",
-            imp.effective_tier.as_str(),
-            role.as_str(),
-        );
-        println!(
-            "Selected: {}/{} test files ({}/{} test nodes, -{:.1}% reduction, {} symbol-pruned edges, {} tainted)",
-            imp.impacted_test_files,
-            imp.total_test_files,
-            imp.impacted_test_nodes,
-            imp.total_test_nodes,
-            imp.reduction_pct,
-            imp.symbol_pruned_edges,
-            imp.tainted_test_nodes,
-        );
-        println!(
-            "Timing:   parse={:.1}ms | graph={:.1}ms | impact={:.2}ms | env_fp={} | proj_fp={}",
-            plan.parse_and_hash_ms,
-            plan.graph_build_ms,
-            imp.eval_ms,
-            &plan.env_fingerprint[..16.min(plan.env_fingerprint.len())],
-            &plan.project_fingerprint[..16.min(plan.project_fingerprint.len())],
-        );
-        if !imp.full_fallback_reasons.is_empty() {
-            println!("Fallback: {}", imp.full_fallback_reasons.join("; "));
-        }
-        let limit = if args.all_files {
-            plan.selected_files.len()
-        } else {
-            30
-        };
-        if !plan.selected_files.is_empty() {
-            println!(
-                "Files ({} shown of {}):",
-                plan.selected_files.len().min(limit),
-                plan.selected_files.len()
-            );
-            for f in plan.selected_files.iter().take(limit) {
-                println!("  {f}");
-            }
-            if plan.selected_files.len() > limit {
-                println!(
-                    "  ... ({} more; pass --all-files or --json)",
-                    plan.selected_files.len() - limit
-                );
-            }
-        }
+        let mut out = RichOutput::new(false, plain);
+        out.render_plan_report(&plan, role, args.all_files);
+        print!("{}", out.finish());
         if args.metrics_kv {
             println!("{}", plan.metrics.to_kv_line(&args.metrics_prefix));
         }
@@ -862,7 +902,7 @@ async fn cmd_daemon(args: DaemonArgs) -> Result<i32> {
     }
 }
 
-fn cmd_cache(args: CacheArgs) -> Result<i32> {
+fn cmd_cache(args: CacheArgs, plain: bool) -> Result<i32> {
     match args.action {
         CacheAction::Status {
             repo,
@@ -901,22 +941,9 @@ fn cmd_cache(args: CacheArgs) -> Result<i32> {
                     }))?
                 );
             } else {
-                println!("=== pyrn cache status (role={}) ===", role.as_str());
-                println!("  DB path:    {}", layout.cas_db_path.display());
-                println!("  DB size:    {:.1} KiB", db_bytes as f64 / 1024.0);
-                println!(
-                    "  Entries:    {} total ({} agent, {} verify) | {} passed, {} failed, {} skipped",
-                    stats.total_entries,
-                    stats.agent_entries,
-                    stats.verify_entries,
-                    stats.passed_entries,
-                    stats.failed_entries,
-                    stats.skipped_entries
-                );
-                println!(
-                    "  Cache hits: {} cumulative hits across {} project(s)",
-                    stats.total_hits, stats.distinct_projects
-                );
+                let mut out = RichOutput::new(false, plain);
+                out.render_cache_status(role, &layout.cas_db_path, db_bytes, &stats);
+                print!("{}", out.finish());
             }
             Ok(0)
         }
@@ -970,7 +997,167 @@ fn cmd_cache(args: CacheArgs) -> Result<i32> {
     }
 }
 
-async fn cmd_doctor(args: DoctorArgs) -> Result<i32> {
+fn describe_config_sources(project_root: &Path) -> String {
+    let mut found = Vec::new();
+    for name in ["pyproject.toml", ".pyrn.toml", "pyrn.toml"] {
+        if project_root.join(name).is_file() {
+            found.push(name);
+        }
+    }
+    if found.is_empty() {
+        "defaults (no pyproject.toml or .pyrn.toml found)".to_owned()
+    } else {
+        found.join(" + ")
+    }
+}
+
+fn cmd_config(args: ConfigArgs, plain: bool) -> Result<i32> {
+    match args.action {
+        ConfigAction::Show {
+            repo,
+            json: as_json,
+        } => {
+            let project_root = resolve_repo_root(&repo)?;
+            let cfg = PyrnConfig::load_from_dir(&project_root);
+            let sources = describe_config_sources(&project_root);
+            if as_json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&json!({
+                        "schema_version": "pyrn.v1",
+                        "command": "config.show",
+                        "ok": true,
+                        "project_root": project_root,
+                        "sources": sources,
+                        "config": cfg,
+                    }))?
+                );
+            } else {
+                let mut out = RichOutput::new(false, plain);
+                out.render_config_show(&project_root, &sources, &cfg);
+                print!("{}", out.finish());
+            }
+            Ok(0)
+        }
+        ConfigAction::Init {
+            repo,
+            force,
+            json: as_json,
+        } => {
+            let project_root = resolve_repo_root(&repo)?;
+            let target = project_root.join(".pyrn.toml");
+            if target.exists() && !force {
+                bail!(
+                    "'{}' already exists (pass --force to overwrite)",
+                    target.display()
+                );
+            }
+            let existing = PyrnConfig::load_from_dir(&project_root);
+            let testpaths = if existing.testpaths.is_empty() {
+                vec!["tests".to_owned()]
+            } else {
+                existing.testpaths
+            };
+            let testpaths_toml = testpaths
+                .iter()
+                .map(|p| format!("{p:?}"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let starter = format!(
+                "# pyrn configuration — https://dariuszpanas.github.io/pyrn/configuration.html\n\
+testpaths = [{testpaths_toml}]\n\
+python_files = [\"test_*.py\", \"*_test.py\"]\n\
+\n\
+[tia]\n\
+symbol_level_tia = true\n\
+conftest_policy = \"smart_fixture_scoped\"\n\
+unknown_path_policy = \"full\"\n\
+env_allowlist_prefixes = [\"DJANGO_\", \"RAY_\"]\n\
+extra_full_triggers = []\n\
+\n\
+[runner]\n\
+worker_mem_mb = 300\n\
+pure_autouse_guards = []\n"
+            );
+            fs::write(&target, starter.as_bytes())
+                .with_context(|| format!("write '{}'", target.display()))?;
+            if as_json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&json!({
+                        "schema_version": "pyrn.v1",
+                        "command": "config.init",
+                        "ok": true,
+                        "path": target,
+                        "overwritten": force,
+                    }))?
+                );
+            } else {
+                println!("Wrote starter configuration to {}", target.display());
+            }
+            Ok(0)
+        }
+    }
+}
+
+fn cmd_self(args: SelfArgs, plain: bool) -> Result<i32> {
+    match args.action {
+        SelfAction::Status { json: as_json } => {
+            let status = inspect_self_status()?;
+            if as_json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&json!({
+                        "schema_version": "pyrn.v1",
+                        "command": "self.status",
+                        "ok": true,
+                        "status": status,
+                    }))?
+                );
+            } else {
+                let mut out = RichOutput::new(false, plain);
+                out.render_self_status(&status);
+                print!("{}", out.finish());
+            }
+            Ok(0)
+        }
+        SelfAction::Update {
+            dry_run,
+            version,
+            json: as_json,
+        } => {
+            let status = inspect_self_status()?;
+            let message = run_self_update(dry_run, version.as_deref())?;
+            if as_json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&json!({
+                        "schema_version": "pyrn.v1",
+                        "command": "self.update",
+                        "ok": true,
+                        "dry_run": dry_run,
+                        "requested_version": version,
+                        "install_owner": status.install_owner,
+                        "message": message,
+                    }))?
+                );
+            } else {
+                println!("{message}");
+            }
+            Ok(0)
+        }
+    }
+}
+
+fn cmd_completion(args: CompletionArgs) -> Result<i32> {
+    let mut cmd = Cli::command();
+    let mut stdout = std::io::stdout();
+    clap_complete::generate(args.shell, &mut cmd, "pyrn", &mut stdout);
+    stdout.flush().context("flush completion output")?;
+    Ok(0)
+}
+
+async fn cmd_doctor(args: DoctorArgs, plain: bool) -> Result<i32> {
     let project_root = resolve_repo_root(&args.repo)?;
     let python_exe = resolve_python_exe(&project_root, args.python.as_deref());
     let role = SlotRole::parse(&args.role)?;
@@ -1008,53 +1195,15 @@ async fn cmd_doctor(args: DoctorArgs) -> Result<i32> {
             }))?
         );
     } else {
-        println!("=== pyrn doctor ({}) ===", report.project_root);
-        println!("  Worker budget: {}", report.worker_budget_explanation);
-        println!(
-            "  Python env:    {} (Python={}, pytest={}, coverage={}, sys.monitoring={})",
-            report.python_exe,
-            report.python_version.as_deref().unwrap_or("unknown"),
-            report.pytest_version.as_deref().unwrap_or("missing"),
-            report
-                .coverage_version
-                .as_deref()
-                .unwrap_or("not installed"),
-            report.sys_monitoring_available,
-        );
-        println!(
-            "  Discovery:     testpaths={:?} python_files={:?} pure_autouse_guards={:?}",
-            report.testpaths, report.python_files, report.pure_autouse_guards
-        );
-        println!(
-            "  Cache / DB:    role={} dir={} cas_db={} sqlite_template_ready={}",
-            report.role.as_str(),
-            report.cache_dir,
-            report.cas_db_path,
-            report.sqlite_template_exists,
-        );
-        if report.daemon_running {
-            println!(
-                "  Warm daemon:   RUNNING (pid={:?}, workers={:?})",
-                report.daemon_pid, report.daemon_workers
-            );
-        } else {
-            println!("  Warm daemon:   stopped (start with `pyrn daemon start --repo .`)");
-        }
-        if !top_slow_files.is_empty() {
-            println!(
-                "  Top {} slowest files (from historical EMA timings):",
-                top_slow_files.len()
-            );
-            for (file, ms) in &top_slow_files {
-                println!("    {:8.1} ms  {file}", ms);
-            }
-        }
+        let mut out = RichOutput::new(false, plain);
+        out.render_doctor_report(&report, &top_slow_files);
+        print!("{}", out.finish());
     }
 
     Ok(0)
 }
 
-fn cmd_replay_git(args: ReplayGitArgs) -> Result<i32> {
+fn cmd_replay_git(args: ReplayGitArgs, plain: bool) -> Result<i32> {
     let project_root = resolve_repo_root(&args.repo)?;
     let tier = ConfidenceTier::parse(&args.tier)?;
 
@@ -1081,76 +1230,111 @@ fn cmd_replay_git(args: ReplayGitArgs) -> Result<i32> {
     if args.json {
         println!("{}", serde_json::to_string_pretty(&summary)?);
     } else {
-        println!(
-            "=== pyrn replay-git (commits={}, tier={}, symbol_tia={}) ===",
-            summary.commits_analyzed,
-            summary.tier.as_str(),
-            summary.symbol_level_tia,
-        );
-        println!(
-            "  Co-change recall:   {}/{} ({:.1}%)",
-            summary.total_cochange_predicted_tests,
-            summary.total_cochange_existing_tests,
-            summary.cochange_recall_pct
-        );
-        println!(
-            "  Node speedup:       {:.2}x median ({:.1}% mean reduction)",
-            summary.median_speedup, summary.mean_reduction_pct
-        );
-        if let Some(dur_sp) = summary.median_duration_speedup {
-            println!(
-                "  Duration speedup:   {:.2}x median ({:.1}% mean wall saved)",
-                dur_sp,
-                summary.mean_duration_reduction_pct.unwrap_or(0.0)
-            );
-        }
-        println!(
-            "  Fallback commits:   {} full | {} zero-impact",
-            summary.full_fallback_commits, summary.zero_impact_commits
-        );
-        for row in &summary.rows {
-            println!(
-                "  {} {:>4}/{:<4} files ({:>5.1}% red, {:>3} sym-pruned) [{}] {}",
-                row.sha,
-                row.impacted_test_files,
-                row.total_test_files,
-                row.reduction_pct,
-                row.symbol_pruned_edges,
-                row.effective_tier.as_str(),
-                row.subject,
-            );
-        }
+        let mut out = RichOutput::new(false, plain);
+        out.render_replay_git(&summary);
+        print!("{}", out.finish());
     }
 
     Ok(0)
 }
 
 async fn run_cli(cli: Cli) -> Result<i32> {
+    let plain = cli.plain;
     match cli.command {
-        Commands::Run(args) => cmd_run(*args).await,
-        Commands::Plan(args) => cmd_plan(args),
+        Commands::Run(args) => cmd_run(*args, plain).await,
+        Commands::Plan(args) => cmd_plan(args, plain),
         Commands::Daemon(args) => cmd_daemon(args).await,
-        Commands::Cache(args) => cmd_cache(args),
-        Commands::Doctor(args) => cmd_doctor(args).await,
-        Commands::ReplayGit(args) => cmd_replay_git(args),
+        Commands::Cache(args) => cmd_cache(args, plain),
+        Commands::Config(args) => cmd_config(args, plain),
+        Commands::Doctor(args) => cmd_doctor(args, plain).await,
+        Commands::ReplayGit(args) => cmd_replay_git(args, plain),
+        Commands::SelfCmd(args) => cmd_self(args, plain),
+        Commands::Completion(args) => cmd_completion(args),
     }
+}
+
+fn raw_args_want_plain() -> bool {
+    for arg in std::env::args().skip(1) {
+        if arg == "--" {
+            break;
+        }
+        if arg == "--plain" {
+            return true;
+        }
+    }
+    false
+}
+
+fn find_help_target(root: &clap::Command, raw_args: &[String]) -> clap::Command {
+    let mut current = root.clone();
+    for token in raw_args {
+        if token == "--" {
+            break;
+        }
+        if token.starts_with('-') || token == "help" {
+            continue;
+        }
+        let next = current
+            .get_subcommands()
+            .find(|s| s.get_name() == token)
+            .cloned();
+        if let Some(sub) = next {
+            current = sub;
+        } else {
+            break;
+        }
+    }
+    current.build();
+    current
 }
 
 #[tokio::main]
 async fn main() -> ExitCode {
+    let raw_plain = raw_args_want_plain();
     let cli = match Cli::try_parse() {
         Ok(c) => c,
         Err(err) => {
-            let code = err.exit_code();
-            let _ = err.print();
-            return ExitCode::from(u8::try_from(code).unwrap_or(2));
+            if err.kind() == ErrorKind::DisplayVersion {
+                let _ = err.print();
+                return ExitCode::SUCCESS;
+            }
+            if matches!(
+                err.kind(),
+                ErrorKind::DisplayHelp | ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand
+            ) {
+                let raw: Vec<String> = std::env::args().skip(1).collect();
+                let mut root = Cli::command();
+                root.build();
+                let target = find_help_target(&root, &raw);
+                let is_stderr = err.kind() == ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand;
+                let mut out = RichOutput::new(is_stderr, raw_plain);
+                out.render_help(&target);
+                if is_stderr {
+                    eprint!("{}", out.finish());
+                } else {
+                    print!("{}", out.finish());
+                }
+                return ExitCode::from(u8::try_from(err.exit_code()).unwrap_or(2));
+            }
+            let rendered = err.to_string();
+            let mut out = RichOutput::new(true, raw_plain);
+            out.render_error("Error", rendered.trim());
+            eprint!("{}", out.finish());
+            return ExitCode::from(2);
         }
     };
 
+    let plain = cli.plain;
     match run_cli(cli).await {
         Ok(code) => ExitCode::from(u8::try_from(code.clamp(0, 255)).unwrap_or(2)),
         Err(err) => {
-            eprintln!("pyrn error: {err:#}");
+            if plain {
+                eprintln!("pyrn error: {err:#}");
+            } else {
+                let mut out = RichOutput::new(true, false);
+                out.render_error("Error", &format!("pyrn error: {err:#}"));
+                eprint!("{}", out.finish());
+            }
             ExitCode::from(2)
         }
     }
@@ -1344,19 +1528,22 @@ mod tests {
 
         // Exercise `cmd_plan` writing a bounded receipt file with custom metrics prefix
         let receipt_path = repo.path().join("out/receipt.json");
-        let code = cmd_plan(PlanArgs {
-            repo: repo.path().to_path_buf(),
-            base: None,
-            changed: vec!["src/app.py".to_owned()],
-            tier: "strict".to_owned(),
-            role: "verify".to_owned(),
-            trace_in: None,
-            json: false,
-            metrics_kv: true,
-            metrics_prefix: "CUSTOM_METRIC".to_owned(),
-            receipt_out: Some(receipt_path.clone()),
-            all_files: true,
-        })
+        let code = cmd_plan(
+            PlanArgs {
+                repo: repo.path().to_path_buf(),
+                base: None,
+                changed: vec!["src/app.py".to_owned()],
+                tier: "strict".to_owned(),
+                role: "verify".to_owned(),
+                trace_in: None,
+                json: false,
+                metrics_kv: true,
+                metrics_prefix: "CUSTOM_METRIC".to_owned(),
+                receipt_out: Some(receipt_path.clone()),
+                all_files: true,
+            },
+            true,
+        )
         .expect("cmd_plan");
         assert_eq!(code, 0);
         let written = fs::read(&receipt_path).expect("read receipt");
@@ -1376,16 +1563,113 @@ mod tests {
         )
         .unwrap();
 
-        let code = cmd_doctor(DoctorArgs {
-            repo: repo.path().to_path_buf(),
-            python: None,
-            role: "agent".to_owned(),
-            cache_dir: Some(cache.path().to_path_buf()),
-            top_slow: 5,
-            json: true,
-        })
+        let code = cmd_doctor(
+            DoctorArgs {
+                repo: repo.path().to_path_buf(),
+                python: None,
+                role: "agent".to_owned(),
+                cache_dir: Some(cache.path().to_path_buf()),
+                top_slow: 5,
+                json: true,
+            },
+            true,
+        )
         .await
         .expect("cmd_doctor");
         assert_eq!(code, 0);
+    }
+
+    #[test]
+    fn parses_config_self_completion_and_plain_flag() {
+        let cfg_cli =
+            Cli::try_parse_from(["pyrn", "--plain", "config", "show", "--json"]).expect("config");
+        assert!(cfg_cli.plain);
+        assert!(matches!(cfg_cli.command, Commands::Config(_)));
+        assert!(Cli::try_parse_from(["pyrn", "config", "init", "--force"]).is_ok());
+        assert!(Cli::try_parse_from(["pyrn", "self", "status", "--json"]).is_ok());
+        assert!(
+            Cli::try_parse_from(["pyrn", "self", "update", "--dry-run", "--version", "0.2.0"])
+                .is_ok()
+        );
+        assert!(Cli::try_parse_from(["pyrn", "completion", "bash"]).is_ok());
+        assert!(Cli::try_parse_from(["pyrn", "completion", "powershell"]).is_ok());
+    }
+
+    #[test]
+    fn config_init_and_show_and_rich_help_work() {
+        let repo = tempfile::tempdir().expect("temp repo");
+        let code = cmd_config(
+            ConfigArgs {
+                action: ConfigAction::Init {
+                    repo: repo.path().to_path_buf(),
+                    force: false,
+                    json: true,
+                },
+            },
+            true,
+        )
+        .expect("config init");
+        assert_eq!(code, 0);
+        assert!(repo.path().join(".pyrn.toml").is_file());
+
+        // Second init without --force must fail cleanly
+        assert!(
+            cmd_config(
+                ConfigArgs {
+                    action: ConfigAction::Init {
+                        repo: repo.path().to_path_buf(),
+                        force: false,
+                        json: false,
+                    },
+                },
+                true,
+            )
+            .is_err()
+        );
+
+        let show_code = cmd_config(
+            ConfigArgs {
+                action: ConfigAction::Show {
+                    repo: repo.path().to_path_buf(),
+                    json: false,
+                },
+            },
+            true,
+        )
+        .expect("config show");
+        assert_eq!(show_code, 0);
+
+        // Rich help renders Options and Commands panels cleanly
+        let mut root = Cli::command();
+        root.build();
+        let mut out = RichOutput::new(false, false);
+        out.render_help(&root);
+        let rendered = out.finish();
+        assert!(rendered.contains("Options"));
+        assert!(rendered.contains("Commands"));
+        assert!(rendered.contains("completion"));
+        assert!(rendered.contains("config"));
+        assert!(rendered.contains("self"));
+
+        // Install-owner detection covers cargo, uv-tool, cargo-build, and standalone
+        assert_eq!(
+            self_manage::detect_install_owner(Path::new("/home/u/.cargo/bin/pyrn")).0,
+            "cargo"
+        );
+        assert_eq!(
+            self_manage::detect_install_owner(Path::new(
+                "/home/u/.local/share/uv/tools/pyrn/bin/pyrn"
+            ))
+            .0,
+            "uv-tool"
+        );
+        assert_eq!(
+            self_manage::detect_install_owner(Path::new("C:\\repo\\target\\release\\pyrn.exe")).0,
+            "cargo-build"
+        );
+        assert_eq!(
+            self_manage::detect_install_owner(Path::new("/usr/local/bin/pyrn")).0,
+            "standalone"
+        );
     }
 }

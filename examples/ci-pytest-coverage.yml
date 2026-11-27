@@ -1,0 +1,41 @@
+name: Tests with pyrn & sysmon coverage
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+
+      - name: Sync project dependencies
+        run: uv sync --frozen --group dev
+
+      - name: Run pytest suite via pyrn
+        id: pyrn
+        uses: dariuszpanas/pyrn@v0.2.0
+        with:
+          command: run
+          workers: "4"
+          role: verify
+          tier: full
+          cov-sysmon: "true"
+          cov-out: .coverage
+          metrics-kv: "true"
+          receipt-out: artifacts/pyrn-receipt.json
+
+      - name: Enforce coverage threshold and export XML
+        run: |
+          uv run coverage report --fail-under=90
+          uv run coverage xml -o coverage.xml

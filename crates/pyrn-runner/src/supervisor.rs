@@ -135,7 +135,7 @@ impl LiveWorker {
 
     pub async fn graceful_shutdown(mut self) {
         let _ = self.send_cmd(&WorkerCommand::Shutdown).await;
-        let wait_res = tokio::time::timeout(Duration::from_secs(3), self.child.wait()).await;
+        let wait_res = tokio::time::timeout(Duration::from_secs(15), self.child.wait()).await;
         if wait_res.is_err() {
             kill_process_tree(self.pid, &mut self.child).await;
         }

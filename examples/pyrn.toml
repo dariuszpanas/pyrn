@@ -1,0 +1,25 @@
+# Starter .pyrn.toml configuration
+# Reference: https://dariuszpanas.github.io/pyrn/configuration.html
+
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+[tia]
+# Prune unaffected callers at top-level def/class granularity under --tier strict
+symbol_level_tia = true
+# Scope function-local conftest.py imports to requesting tests instead of whole subtrees
+conftest_policy = "smart_fixture_scoped"
+# Fail closed to full-suite execution when unmapped files change
+unknown_path_policy = "full"
+# Environment variable prefixes hashed into BLAKE3 cache keys
+env_allowlist_prefixes = ["DJANGO_", "RAY_"]
+# Optional extra repository paths that always trigger a full run
+extra_full_triggers = []
+
+[runner]
+# Estimated per-worker memory footprint in MiB for container OOM protection
+worker_mem_mb = 300
+# Optional opt-in pure/DB-conditional autouse fixtures eligible for the direct fast-path
+pure_autouse_guards = []

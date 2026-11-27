@@ -35,6 +35,7 @@ Measured on an anonymized 12,001-test Django + Ray codebase (16-physical-core wo
 ## Documentation
 
 - [Get started](https://dariuszpanas.github.io/pyrn/getting-started.html) — install via standalone script, PyPI (`uvx`/`pip`), or Cargo, then run `pyrn doctor`, `pyrn plan`, and a warm daemon.
+- [GitHub Actions](https://dariuszpanas.github.io/pyrn/github-actions.html) — drop-in composite action (`uses: dariuszpanas/pyrn@v0.2.0`) with SHA-256 verified native binaries, `$GITHUB_OUTPUT` metrics, and step summaries.
 - [Assess and adopt in CI](https://dariuszpanas.github.io/pyrn/ci-adoption.html) — move from `pytest-xdist` / C-trace coverage to a staged `pyrn` rollout.
 - [Recipes](https://dariuszpanas.github.io/pyrn/recipes.html) — copy-paste workflows for warm local loops, Django + SQLite, GitHub Actions, container pods, and `--cov-sysmon`.
 - [Command reference](https://dariuszpanas.github.io/pyrn/commands.html) — complete flags, defaults, and exit codes for every subcommand.
@@ -102,7 +103,31 @@ pyrn cache prune --repo . --max-age-days 30
 
 # Read-only Git commit history TIA replay
 pyrn replay-git --repo . --limit 30 --tier strict
+
+# Inspect or scaffold .pyrn.toml, check install status, or generate shell completions
+pyrn config show --repo .
+pyrn config init --repo .
+pyrn self status
+pyrn self update --dry-run
+pyrn completion bash
 ```
+
+### GitHub Actions
+
+Drop `pyrn` directly into any CI workflow with verified standalone release binaries and rich step summaries:
+
+```yaml
+- uses: dariuszpanas/pyrn@v0.2.0
+  with:
+    command: run
+    workers: "4"
+    role: verify
+    tier: full
+    cov-sysmon: "true"
+    cov-out: .coverage
+```
+
+See the [GitHub Actions guide](https://dariuszpanas.github.io/pyrn/github-actions.html) and [`examples/`](https://github.com/dariuszpanas/pyrn/tree/main/examples) for TIA + CAS cache templates and pre-commit hooks (`.pre-commit-hooks.yaml`).
 
 ## Configuration (`.pyrn.toml` / `pyproject.toml`)
 
@@ -138,6 +163,6 @@ Downstream Rust tools can depend on `pyrn-core` with `default-features = false` 
 
 ## Project Status
 
-`pyrn` is beta (`v0.1.1`). See the [Security model](https://dariuszpanas.github.io/pyrn/security.html), [Contributing guide](https://dariuszpanas.github.io/pyrn/contributing.html), [Troubleshooting guide](https://dariuszpanas.github.io/pyrn/troubleshooting.html), and [Changelog](https://dariuszpanas.github.io/pyrn/changelog.html).
+`pyrn` is beta (`v0.2.0`). See the [Security model](https://dariuszpanas.github.io/pyrn/security.html), [Contributing guide](https://dariuszpanas.github.io/pyrn/contributing.html), [Troubleshooting guide](https://dariuszpanas.github.io/pyrn/troubleshooting.html), and [Changelog](https://dariuszpanas.github.io/pyrn/changelog.html).
 
 Licensed under [Apache-2.0](https://github.com/dariuszpanas/pyrn/blob/main/LICENSE).

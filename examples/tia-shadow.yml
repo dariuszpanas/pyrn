@@ -1,0 +1,52 @@
+name: pyrn TIA & CAS Cache Shadow Check
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  tia-shadow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+
+      - name: Sync project dependencies
+        run: uv sync --frozen --group dev
+
+      - name: Restore pyrn CAS cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/pyrn-cache
+          key: pyrn-cas-${{ runner.os }}-py312-${{ hashFiles('uv.lock') }}-${{ github.sha }}
+          restore-keys: |
+            pyrn-cas-${{ runner.os }}-py312-${{ hashFiles('uv.lock') }}-
+
+      - name: Preview impacted tests (pure in-memory TIA)
+        uses: dariuszpanas/pyrn@v0.2.0
+        with:
+          command: plan
+          base: origin/${{ github.base_ref }}
+          role: verify
+          tier: strict
+
+      - name: Run impacted tests with SQLite WAL CAS cache
+        uses: dariuszpanas/pyrn@v0.2.0
+        with:
+          command: run
+          tia: "true"
+          base: origin/${{ github.base_ref }}
+          cache: "true"
+          cache-dir: ${{ runner.temp }}/pyrn-cache
+          workers: "4"
+          role: verify
+          tier: strict
+          metrics-kv: "true"

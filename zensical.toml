@@ -12,6 +12,7 @@ nav = [
   { "Home" = "index.md" },
   { "Start here" = [
     { "Get started" = "getting-started.md" },
+    { "GitHub Actions" = "github-actions.md" },
     { "Assess and adopt in CI" = "ci-adoption.md" },
     { "Recipes" = "recipes.md" },
   ] },

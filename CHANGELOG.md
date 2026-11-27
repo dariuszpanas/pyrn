@@ -8,6 +8,34 @@ This project follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-26
+
+### Added
+
+- **First-party GitHub Action (`action.yml`) & ecosystem templates**:
+  - Reusable composite action (`dariuszpanas/pyrn`) supporting `run`, `plan`, `doctor`, and
+    `config`, SHA-256 verified standalone binary bootstrap cached in `$RUNNER_TEMP`, `$GITHUB_OUTPUT`
+    receipt metrics, and rich `$GITHUB_STEP_SUMMARY` Markdown tables.
+  - Added `.pre-commit-hooks.yaml` (`pyrn-doctor`, `pyrn-tia`), ready-to-copy workflow/config
+    templates under `examples/`, and [docs/github-actions.md](docs/github-actions.md).
+- **Rich terminal UI & new CLI subcommands (`crates/pyrn-cli`)**:
+  - Powered by `fast-rich` (`=0.4.0`): rounded Unicode panels, styled tables, verdict badges,
+    framed Rich `--help` / error output, and global `--plain` flag honoring `NO_COLOR`,
+    `FORCE_COLOR`, `GITHUB_ACTIONS`, and TTY state (while keeping `--json`, `--ndjson`, and
+    `--metrics-kv` pure).
+  - Added `pyrn config show|init`, `pyrn self status|update`, and
+    `pyrn completion bash|zsh|fish|powershell|elvish`.
+
+### Changed
+
+- **Continuous cold `--cov-sysmon` coverage & large-suite scheduler (`crates/pyrn-runner`)**:
+  - Keep the per-worker `coverage.Coverage` controller running continuously across units during cold
+    runs and save once on graceful worker shutdown, eliminating hundreds of per-unit SQLite flush
+    cycles and increasing statement coverage parity.
+  - Tail-aware heavy-file sharding and tiny-file batching (`<= 6` files / `1,200 ms` budget) cut
+    per-file collection overhead and improve worker parallel efficiency on large multi-hundred-file
+    suites.
+
 ## [0.1.1] - 2026-11-26
 
 ### Fixed

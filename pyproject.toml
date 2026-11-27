@@ -5,7 +5,7 @@ backend-path = ["."]
 
 [project]
 name = "pyrn"
-version = "0.1.1"
+version = "0.2.0"
 description = "Rust-powered Python/pytest Test Impact Analysis, content-addressed test caching, and isolated warm-pool execution engine"
 readme = "README.md"
 license = "Apache-2.0"
@@ -50,6 +50,7 @@ dev = ["zensical>=0.0.20"]
 [tool.hatch.build.targets.sdist]
 only-include = [
     ".gitignore",
+    ".pre-commit-hooks.yaml",
     "CHANGELOG.md",
     "CONTRIBUTING.md",
     "Cargo.lock",
@@ -57,8 +58,10 @@ only-include = [
     "LICENSE",
     "README.md",
     "SECURITY.md",
+    "action.yml",
     "crates",
     "docs",
+    "examples",
     "hatch_build.py",
     "overrides",
     "pyproject.toml",

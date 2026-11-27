@@ -108,6 +108,13 @@ impl AffinityWorkQueue {
 
         let mut next_id = 1usize;
 
+        let file_count = files.len();
+        let total_est_ms: f64 = files
+            .iter()
+            .filter(|f| f.lane != ResourceLane::SerialExternal)
+            .map(|f| estimate_file_ms(f, history))
+            .sum();
+
         for f in files {
             let explicit = explicit_nodeids_by_file.and_then(|m| m.get(&f.rel_path));
             if let Some(explicit_map) = explicit_nodeids_by_file
@@ -136,7 +143,7 @@ impl AffinityWorkQueue {
                     && !f.has_module_fixture
                     && nids.len() >= 8
                 {
-                    compute_shard_count(f, est_ms, workers)
+                    compute_shard_count(f, est_ms, workers, total_est_ms, file_count)
                         .min(nids.len() / 4)
                         .max(1)
                 } else {
@@ -181,7 +188,7 @@ impl AffinityWorkQueue {
                 && f.lane != ResourceLane::SerialExternal
                 && !f.has_module_fixture
             {
-                compute_shard_count(f, est_ms, workers)
+                compute_shard_count(f, est_ms, workers, total_est_ms, file_count)
             } else {
                 1
             };
@@ -206,6 +213,11 @@ impl AffinityWorkQueue {
                 }
             }
         }
+
+        // Batch tiny unsharded single-file units in large suites to cut repeated pytest
+        // collection and fixture-manager setup overhead while preserving LPT load balance.
+        hermetic_units = batch_small_units(hermetic_units, workers, &mut next_id);
+        sqlite_units = batch_small_units(sqlite_units, workers, &mut next_id);
 
         // LPT ordering: longest estimated duration first so heavy-tail items start at t=0.
         let lpt_cmp = |a: &WorkUnit, b: &WorkUnit| {
@@ -332,8 +344,116 @@ fn estimate_file_ms(f: &DiscoveredFile, history: &TimingHistory) -> f64 {
     (f.estimated_tests as f64 * per_test + import_prior).max(15.0)
 }
 
-fn compute_shard_count(f: &DiscoveredFile, est_ms: f64, workers: usize) -> usize {
+fn batch_small_units(units: Vec<WorkUnit>, workers: usize, next_id: &mut usize) -> Vec<WorkUnit> {
+    let min_unbatched = workers.max(1) * 6;
+    if units.len() <= min_unbatched {
+        return units;
+    }
+
+    const SMALL_UNIT_MAX_MS: f64 = 400.0;
+    const BATCH_MAX_FILES: usize = 6;
+    const BATCH_MAX_MS: f64 = 1200.0;
+
+    let mut kept = Vec::with_capacity(units.len());
+    let mut small = Vec::new();
+    for u in units {
+        let batchable = u.shard_total == 1
+            && u.explicit_nodeids.is_none()
+            && u.exclude_nodeids.is_none()
+            && u.paths.len() == 1
+            && u.estimated_ms <= SMALL_UNIT_MAX_MS;
+        if batchable {
+            small.push(u);
+        } else {
+            kept.push(u);
+        }
+    }
+
+    if small.len() <= workers.max(1) * 2 {
+        kept.extend(small);
+        return kept;
+    }
+
+    // Group tiny files deterministically by parent directory/path order so conftest locality is high.
+    small.sort_by(|a, b| a.paths.cmp(&b.paths));
+
+    let mut current_paths: Vec<String> = Vec::new();
+    let mut current_ms = 0.0f64;
+    let mut current_lane = small[0].lane;
+
+    let flush = |paths: &mut Vec<String>,
+                 ms: &mut f64,
+                 lane: ResourceLane,
+                 out: &mut Vec<WorkUnit>,
+                 nid: &mut usize| {
+        if paths.is_empty() {
+            return;
+        }
+        out.push(WorkUnit {
+            unit_id: format!("u{:04}", *nid),
+            lane,
+            paths: std::mem::take(paths),
+            shard_index: 0,
+            shard_total: 1,
+            explicit_nodeids: None,
+            exclude_nodeids: None,
+            estimated_ms: *ms,
+            retry_attempt: 0,
+        });
+        *nid += 1;
+        *ms = 0.0;
+    };
+
+    for u in small {
+        let would_exceed = !current_paths.is_empty()
+            && (current_paths.len() >= BATCH_MAX_FILES
+                || current_ms + u.estimated_ms > BATCH_MAX_MS
+                || current_lane != u.lane);
+        if would_exceed {
+            flush(
+                &mut current_paths,
+                &mut current_ms,
+                current_lane,
+                &mut kept,
+                next_id,
+            );
+        }
+        current_lane = u.lane;
+        current_paths.extend(u.paths);
+        current_ms += u.estimated_ms;
+    }
+    flush(
+        &mut current_paths,
+        &mut current_ms,
+        current_lane,
+        &mut kept,
+        next_id,
+    );
+
+    kept
+}
+
+fn compute_shard_count(
+    f: &DiscoveredFile,
+    est_ms: f64,
+    workers: usize,
+    total_est_ms: f64,
+    file_count: usize,
+) -> usize {
     let max_shards = (workers / 2).clamp(2, 8);
+    // When there are already plenty of files to saturate every worker, avoid re-collecting
+    // medium files multiple times unless a file is a genuine tail-skew risk relative to the
+    // per-worker share of the run.
+    if file_count >= workers.max(1) * 4 {
+        let worker_share_ms = total_est_ms / (workers.max(1) as f64);
+        let tail_threshold = (worker_share_ms * 0.25).max(3000.0);
+        if est_ms < tail_threshold {
+            return 1;
+        }
+        let needed = (est_ms / tail_threshold).ceil() as usize;
+        return needed.clamp(2, max_shards);
+    }
+
     if f.lane == ResourceLane::SqliteDjango {
         if est_ms >= 12_000.0 {
             return max_shards;
@@ -407,5 +527,40 @@ mod tests {
             .pop_for_sticky(ResourceLane::SqliteDjango, &HashSet::new())
             .expect("u2");
         assert_eq!(u2.lane, ResourceLane::SqliteDjango);
+    }
+
+    #[test]
+    fn large_suite_avoids_over_sharding_and_batches_tiny_files() {
+        let mut files = Vec::new();
+        for i in 0..48 {
+            files.push(DiscoveredFile {
+                rel_path: format!("tests/unit/test_tiny_{i:02}.py"),
+                abs_path: PathBuf::from(format!("tests/unit/test_tiny_{i:02}.py")),
+                lane: ResourceLane::Hermetic,
+                estimated_tests: 10,
+                line_count: 100,
+                has_module_fixture: false,
+            });
+        }
+        // Medium DB file in a large 4-worker suite should stay unsharded instead of re-collecting.
+        files.push(DiscoveredFile {
+            rel_path: "tests/unit/test_medium_db.py".to_owned(),
+            abs_path: PathBuf::from("tests/unit/test_medium_db.py"),
+            lane: ResourceLane::SqliteDjango,
+            estimated_tests: 80,
+            line_count: 1800,
+            has_module_fixture: false,
+        });
+        let history = TimingHistory::default();
+        let (_q, h_units, db_units) =
+            AffinityWorkQueue::build(&files, &history, 4, true, None, None);
+        assert!(
+            h_units < 20,
+            "48 tiny files should batch into far fewer units, got {h_units}"
+        );
+        assert_eq!(
+            db_units, 1,
+            "medium file in saturated 4-worker suite should not over-shard"
+        );
     }
 }

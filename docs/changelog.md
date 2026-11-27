@@ -7,6 +7,36 @@ All notable changes to `pyrn` are recorded here and summarized in the root
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-26
+
+### Added
+
+- **First-party GitHub Action (`action.yml`) and ecosystem integration:**
+  - Added a reusable composite GitHub Action (`dariuszpanas/pyrn`) supporting `run`, `plan`,
+    `doctor`, and `config` with SHA-256 verified standalone binary downloads cached in
+    `$RUNNER_TEMP`, safe bash array argument assembly, structured `$GITHUB_OUTPUT` metrics from
+    `CompactReceipt`, and `$GITHUB_STEP_SUMMARY` Markdown tables.
+  - Added `.pre-commit-hooks.yaml` (`pyrn-doctor`, `pyrn-tia`), copy-paste examples under
+    `examples/` (`ci-pytest-coverage.yml`, `tia-shadow.yml`, `pyrn.toml`), and a dedicated
+    [GitHub Actions](github-actions.md) guide.
+- **Rich CLI presentation and lifecycle subcommands (`crates/pyrn-cli`):**
+  - Integrated `fast-rich` (`=0.4.0`) for rounded Unicode panels, aligned key-value tables, styled
+    verdict indicators, framed Rich `--help` and stderr error panels, and a global `--plain` flag
+    respecting `NO_COLOR`, `FORCE_COLOR`, `GITHUB_ACTIONS`, and TTY width while keeping `--json`,
+    `--ndjson`, and `--metrics-kv` completely unframed.
+  - Added `pyrn config show|init`, `pyrn self status|update` (detecting `standalone`, `uv-tool`, and
+    `cargo` installs), and `pyrn completion bash|zsh|fish|powershell|elvish`.
+
+### Changed
+
+- **Continuous cold `--cov-sysmon` coverage and large-suite batching (`crates/pyrn-runner`):**
+  - Keep per-worker `coverage.Coverage` active continuously across work units in cold runs and
+    commit once at graceful worker shutdown (extending shutdown drain timeout to `15 s`), removing
+    hundreds of per-unit `stop()`/`save()`/`start()` cycles.
+  - Avoid over-sharding medium files when large suites already have abundant file-level parallelism,
+    and pack consecutive tiny files (up to 6 files / `1,200 ms`) per unit to cut per-unit collection
+    overhead and raise worker efficiency.
+
 ## [0.1.1] - 2026-11-26
 
 ### Fixed

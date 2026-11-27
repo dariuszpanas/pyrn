@@ -1,0 +1,18 @@
+- id: pyrn-doctor
+  name: pyrn environment check
+  description: Verify Python, pytest, worker budget, and pyrn configuration before committing.
+  entry: pyrn doctor --repo .
+  language: python
+  pass_filenames: false
+  always_run: true
+  stages: [manual]
+  minimum_pre_commit_version: "3.2.0"
+
+- id: pyrn-tia
+  name: pyrn impacted tests (TIA)
+  description: Run symbol-level impacted pytest targets against HEAD with CAS caching.
+  entry: pyrn run --repo . --tia --base HEAD --cache --role agent
+  language: python
+  pass_filenames: false
+  stages: [pre-push]
+  minimum_pre_commit_version: "3.2.0"

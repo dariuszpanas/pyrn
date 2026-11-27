@@ -1346,6 +1346,11 @@ def main() -> int:
                 active_cov = _create_coverage_controller(effective_cov_file)
                 cov_ctrl = active_cov
                 cov_data_file = effective_cov_file
+            continuous_cold_cov = bool(
+                boot_cov_data_file
+                and effective_cov_file == boot_cov_data_file
+                and active_cov is cov_ctrl
+            )
             if active_cov is not None and not cov_running:
                 with contextlib.suppress(Exception):
                     active_cov.start()
@@ -1478,7 +1483,9 @@ def main() -> int:
                 # fixture-teardown paths are measured, while keeping session fixtures warm.
                 with contextlib.suppress(Exception):
                     session._setupstate.teardown_exact(keepalive_sentinel)
-                if active_cov is not None and cov_running:
+                # Keep cold-run worker coverage running continuously until worker shutdown so
+                # we avoid hundreds of redundant SQLite shard saves and sys.monitoring resets.
+                if active_cov is not None and cov_running and not continuous_cold_cov:
                     with contextlib.suppress(Exception):
                         active_cov.stop()
                         active_cov.save()
