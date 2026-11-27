@@ -9,75 +9,87 @@
       fill: #141c1f;
     }
     .r-glyph {
-      animation: svg-r 4.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+      animation: svg-r 5s cubic-bezier(0.45, 0, 0.25, 1) forwards;
     }
-    .u-glyph {
+    .pivot-n,
+    .pivot-u,
+    .st-glyph,
+    .tail-n {
       transform-box: fill-box;
       transform-origin: center;
-      animation: svg-u 4.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    }
+    .pivot-n {
+      animation: svg-pivot-n 5s cubic-bezier(0.45, 0, 0.25, 1) forwards;
+    }
+    .pivot-u {
+      animation: svg-pivot-u 5s cubic-bezier(0.45, 0, 0.25, 1) forwards;
     }
     .st-glyph {
-      transform-box: fill-box;
-      transform-origin: center;
-      animation: svg-st 4.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+      animation: svg-st 5s cubic-bezier(0.45, 0, 0.25, 1) forwards;
     }
-    .n-glyph {
-      transform-box: fill-box;
-      transform-origin: center;
-      animation: svg-n 4.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    .tail-n {
+      animation: svg-tail-n 5s cubic-bezier(0.45, 0, 0.25, 1) forwards;
     }
     @keyframes svg-r {
-      0%, 26% { fill: #b45309; }
-      42%, 100% { fill: #141c1f; }
+      0%, 16% { fill: #141c1f; }
+      26%, 48% { fill: #b45309; }
+      60%, 100% { fill: #141c1f; }
+    }
+    @keyframes svg-pivot-n {
+      0%, 16% { opacity: 1; transform: scaleY(1); }
+      22.9% { opacity: 1; transform: scaleY(0.05); }
+      23%, 84% { opacity: 0; transform: scaleY(0); }
+      84.1% { opacity: 1; transform: scaleY(0.05); }
+      92%, 100% { opacity: 1; transform: scaleY(1); }
+    }
+    @keyframes svg-pivot-u {
+      0%, 22.9% { opacity: 0; fill: #b45309; transform: scaleY(0); }
+      23% { opacity: 1; fill: #b45309; transform: scaleY(0.05); }
+      30%, 48% { opacity: 1; fill: #b45309; transform: scaleY(1); }
+      60%, 76% { opacity: 1; fill: #141c1f; transform: scaleY(1); }
+      83.9% { opacity: 1; fill: #141c1f; transform: scaleY(0.05); }
+      84%, 100% { opacity: 0; transform: scaleY(0); }
     }
     @keyframes svg-st {
-      0%, 24% { opacity: 1; fill: #b45309; transform: scaleY(1); }
-      36%, 100% { opacity: 0; fill: #b45309; transform: scaleY(0); }
+      0%, 16% { opacity: 0; fill: #b45309; transform: scaleY(0); }
+      28%, 48% { opacity: 1; fill: #b45309; transform: scaleY(1); }
+      58%, 100% { opacity: 0; fill: #b45309; transform: scaleY(0); }
     }
-    @keyframes svg-u {
-      0%, 24% { opacity: 1; fill: #b45309; transform: translateX(0) scaleY(1); }
-      38%, 62% { opacity: 1; fill: #141c1f; transform: translateX(0) scaleY(1); }
-      74% { opacity: 0.35; fill: #b45309; transform: translateX(6px) scaleY(-1); }
-      84%, 100% { opacity: 0; fill: #b45309; transform: translateX(8px) scaleY(-1); }
-    }
-    @keyframes svg-n {
-      0%, 26% { opacity: 0; transform: translateX(0) scaleY(0); }
-      38%, 62% { opacity: 1; fill: #141c1f; transform: translateX(0) scaleY(1); }
-      75% { opacity: 1; fill: #b45309; transform: translateX(-29px) scaleY(1); }
-      88%, 100% { opacity: 1; fill: #141c1f; transform: translateX(-29px) scaleY(1); }
+    @keyframes svg-tail-n {
+      0%, 50% { opacity: 0; transform: scaleY(0); }
+      60%, 76% { opacity: 1; transform: scaleY(1); }
+      86%, 100% { opacity: 0; transform: scaleY(0); }
     }
     @media (prefers-color-scheme: dark) {
       .wm { fill: #e2e8ea; }
       @keyframes svg-r {
-        0%, 26% { fill: #f59e0b; }
-        42%, 100% { fill: #e2e8ea; }
+        0%, 16% { fill: #e2e8ea; }
+        26%, 48% { fill: #f59e0b; }
+        60%, 100% { fill: #e2e8ea; }
+      }
+      @keyframes svg-pivot-u {
+        0%, 22.9% { opacity: 0; fill: #f59e0b; transform: scaleY(0); }
+        23% { opacity: 1; fill: #f59e0b; transform: scaleY(0.05); }
+        30%, 48% { opacity: 1; fill: #f59e0b; transform: scaleY(1); }
+        60%, 76% { opacity: 1; fill: #e2e8ea; transform: scaleY(1); }
+        83.9% { opacity: 1; fill: #e2e8ea; transform: scaleY(0.05); }
+        84%, 100% { opacity: 0; transform: scaleY(0); }
       }
       @keyframes svg-st {
-        0%, 24% { opacity: 1; fill: #f59e0b; transform: scaleY(1); }
-        36%, 100% { opacity: 0; fill: #f59e0b; transform: scaleY(0); }
-      }
-      @keyframes svg-u {
-        0%, 24% { opacity: 1; fill: #f59e0b; transform: translateX(0) scaleY(1); }
-        38%, 62% { opacity: 1; fill: #e2e8ea; transform: translateX(0) scaleY(1); }
-        74% { opacity: 0.35; fill: #f59e0b; transform: translateX(6px) scaleY(-1); }
-        84%, 100% { opacity: 0; fill: #f59e0b; transform: translateX(8px) scaleY(-1); }
-      }
-      @keyframes svg-n {
-        0%, 26% { opacity: 0; transform: translateX(0) scaleY(0); }
-        38%, 62% { opacity: 1; fill: #e2e8ea; transform: translateX(0) scaleY(1); }
-        75% { opacity: 1; fill: #f59e0b; transform: translateX(-29px) scaleY(1); }
-        88%, 100% { opacity: 1; fill: #e2e8ea; transform: translateX(-29px) scaleY(1); }
+        0%, 16% { opacity: 0; fill: #f59e0b; transform: scaleY(0); }
+        28%, 48% { opacity: 1; fill: #f59e0b; transform: scaleY(1); }
+        58%, 100% { opacity: 0; fill: #f59e0b; transform: scaleY(0); }
       }
     }
     @media (prefers-reduced-motion: reduce) {
-      .r-glyph { animation: none; }
-      .u-glyph, .st-glyph { display: none; }
-      .n-glyph { animation: none; opacity: 1; transform: translateX(-29px); }
+      .r-glyph, .pivot-n { animation: none; opacity: 1; transform: none; }
+      .pivot-u, .st-glyph, .tail-n { display: none; }
     }
   </style>
   <text class="wm" x="12" y="51">Py</text>
   <text class="wm r-glyph" x="72" y="51">R</text>
-  <text class="wm u-glyph" x="108" y="51">u</text>
+  <text class="wm pivot-n" x="108" y="51">n</text>
+  <text class="wm pivot-u" x="108" y="51">u</text>
   <text class="wm st-glyph" x="137" y="51">st</text>
-  <text class="wm n-glyph" x="137" y="51">n</text>
+  <text class="wm tail-n" x="137" y="51">n</text>
 </svg>

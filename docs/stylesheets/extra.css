@@ -53,7 +53,7 @@
   border-radius: 0.5rem;
 }
 
-/* One-shot PyRust -> PyRun -> PyRn forward-flip wordmark (pure CSS, zero JS). */
+/* One-shot PyRn -> PyRust -> PyRun -> PyRn 3D forward-flip wordmark (pure CSS, zero JS). */
 .pyrn-wordmark {
   display: inline-block;
   font-weight: 800;
@@ -63,143 +63,163 @@
 .pyrn-track {
   display: inline-flex;
   align-items: baseline;
-  perspective: 420px;
+  perspective: 460px;
 }
 
-.pyrn-r,
-.pyrn-u,
-.pyrn-st,
-.pyrn-n {
+.pyrn-r {
   display: inline-block;
-  transform-origin: 50% 60%;
-  backface-visibility: visible;
-  will-change: transform, opacity, max-width;
+  animation: pyrn-stage-r 5s cubic-bezier(0.45, 0, 0.25, 1) forwards;
 }
 
-.pyrn-u,
-.pyrn-st {
+/* Two-sided 3D flip glyph: front is real 'n' (0deg), back is real 'u' (180deg). */
+.pyrn-pivot {
+  display: inline-grid;
+  align-items: baseline;
+  transform-style: preserve-3d;
+  transform-origin: 50% 60%;
+  will-change: transform;
+  animation: pyrn-stage-pivot 5s cubic-bezier(0.45, 0, 0.25, 1) forwards;
+}
+
+.pyrn-face {
+  grid-area: 1 / 1;
+  display: inline-block;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.pyrn-face-n {
+  transform: rotateX(0deg);
+}
+
+.pyrn-face-u {
+  transform: rotateX(180deg);
+  user-select: none;
+  animation: pyrn-stage-u-color 5s cubic-bezier(0.45, 0, 0.25, 1) forwards;
+}
+
+.pyrn-st,
+.pyrn-tail-n {
+  display: inline-block;
   overflow-x: clip;
   overflow-y: visible;
   white-space: nowrap;
   user-select: none;
-}
-
-.pyrn-n {
-  overflow-x: clip;
-  overflow-y: visible;
-  white-space: nowrap;
-}
-
-.pyrn-r {
-  animation: pyrn-morph-r 4.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-}
-
-.pyrn-u {
-  animation: pyrn-morph-u 4.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  transform-origin: 50% 60%;
+  will-change: transform, opacity, max-width;
 }
 
 .pyrn-st {
-  animation: pyrn-morph-st 4.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation: pyrn-stage-st 5s cubic-bezier(0.45, 0, 0.25, 1) forwards;
 }
 
-.pyrn-n {
-  animation: pyrn-morph-n 4.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+.pyrn-tail-n {
+  animation: pyrn-stage-tail-n 5s cubic-bezier(0.45, 0, 0.25, 1) forwards;
 }
 
-/* Act 1 (0–24%): PyRust | Act 2 (38–62%): PyRun | Act 3 (82–100%): PyRn */
-@keyframes pyrn-morph-r {
-  0%, 26% {
+/*
+ * Choreography (5.0s, settles permanently on PyRn):
+ *  0–16%  PyRn   (clean initial state)
+ * 16–30%  n flips forward into u while 'st' unfolds -> PyRust
+ * 30–48%  PyRust (Rust accented in amber)
+ * 48–60%  'st' flips forward away while trailing 'n' flips in -> PyRun
+ * 60–76%  PyRun
+ * 76–92%  u continues rotating forward into upright 'n' while trailing 'n' tucks away -> PyRn
+ * 92–100% PyRn   (final resting state)
+ */
+@keyframes pyrn-stage-pivot {
+  0%, 16% {
+    transform: rotateX(0deg);
+  }
+  30%, 76% {
+    transform: rotateX(-180deg);
+  }
+  92%, 100% {
+    transform: rotateX(-360deg);
+  }
+}
+
+@keyframes pyrn-stage-r {
+  0%, 16% {
+    color: inherit;
+  }
+  26%, 48% {
     color: var(--md-accent-fg-color);
   }
-  42%, 100% {
+  60%, 100% {
     color: inherit;
   }
 }
 
-@keyframes pyrn-morph-st {
-  0%, 24% {
-    max-width: 2.2ch;
+@keyframes pyrn-stage-u-color {
+  0%, 48% {
+    color: var(--md-accent-fg-color);
+  }
+  60%, 100% {
+    color: inherit;
+  }
+}
+
+@keyframes pyrn-stage-st {
+  0%, 16% {
+    max-width: 0;
+    opacity: 0;
+    color: var(--md-accent-fg-color);
+    transform: rotateX(95deg);
+  }
+  28%, 48% {
+    max-width: 2.3ch;
     opacity: 1;
     color: var(--md-accent-fg-color);
     transform: rotateX(0deg);
   }
-  33% {
-    max-width: 1.4ch;
+  56% {
+    max-width: 1.2ch;
     opacity: 0;
     color: var(--md-accent-fg-color);
-    transform: rotateX(-105deg);
+    transform: rotateX(-100deg);
   }
-  39%, 100% {
+  61%, 100% {
     max-width: 0;
     opacity: 0;
-    transform: rotateX(-105deg);
+    transform: rotateX(-100deg);
   }
 }
 
-@keyframes pyrn-morph-u {
-  0%, 24% {
-    max-width: 1.25ch;
-    opacity: 1;
-    color: var(--md-accent-fg-color);
-    transform: translateX(0) rotateX(0deg);
-  }
-  38%, 62% {
-    max-width: 1.25ch;
-    opacity: 1;
-    color: inherit;
-    transform: translateX(0) rotateX(0deg);
-  }
-  74% {
-    max-width: 0.9ch;
-    opacity: 0.35;
-    color: var(--md-accent-fg-color);
-    transform: translateX(0.16em) rotateX(-180deg);
-  }
-  83%, 100% {
-    max-width: 0;
-    opacity: 0;
-    color: var(--md-accent-fg-color);
-    transform: translateX(0.22em) rotateX(-180deg);
-  }
-}
-
-@keyframes pyrn-morph-n {
-  0%, 26% {
+@keyframes pyrn-stage-tail-n {
+  0%, 50% {
     max-width: 0;
     opacity: 0;
     transform: rotateX(95deg);
   }
-  38%, 62% {
-    max-width: 1.25ch;
+  60%, 76% {
+    max-width: 1.3ch;
     opacity: 1;
-    color: inherit;
     transform: rotateX(0deg);
   }
-  75% {
-    max-width: 1.25ch;
-    opacity: 1;
-    color: var(--md-accent-fg-color);
-    transform: rotateX(0deg);
+  86% {
+    max-width: 0.6ch;
+    opacity: 0;
+    transform: rotateX(-100deg);
   }
-  88%, 100% {
-    max-width: 1.25ch;
-    opacity: 1;
-    color: inherit;
-    transform: rotateX(0deg);
+  92%, 100% {
+    max-width: 0;
+    opacity: 0;
+    transform: rotateX(-100deg);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .pyrn-r,
-  .pyrn-n {
+  .pyrn-pivot,
+  .pyrn-face-u {
     animation: none;
     color: inherit;
-    opacity: 1;
-    max-width: none;
     transform: none;
   }
-  .pyrn-u,
-  .pyrn-st {
+  .pyrn-face-u,
+  .pyrn-st,
+  .pyrn-tail-n {
     display: none;
   }
 }
