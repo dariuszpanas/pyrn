@@ -53,7 +53,7 @@
   border-radius: 0.5rem;
 }
 
-/* Looping PyRn -> PyRust -> PyRun -> PyRn (delete u) 3D forward-flip wordmark (pure CSS, zero JS). */
+/* Looping PyRn -> PyRust -> PyRun -> PyRn (delete u) forward-flip wordmark (pure CSS, zero JS). */
 .pyrn-wordmark {
   display: inline-block;
   font-weight: 800;
@@ -66,122 +66,66 @@
   perspective: 460px;
 }
 
-.pyrn-r {
+.pyrn-r,
+.pyrn-n1,
+.pyrn-u,
+.pyrn-st,
+.pyrn-n2 {
   display: inline-block;
+  overflow-x: clip;
+  overflow-y: visible;
+  white-space: nowrap;
+  transform-origin: 50% 56%;
+  will-change: transform, opacity, max-width;
+}
+
+.pyrn-u,
+.pyrn-st,
+.pyrn-n2 {
+  user-select: none;
+}
+
+.pyrn-r {
   animation: pyrn-loop-r 9.5s cubic-bezier(0.45, 0, 0.25, 1) infinite;
 }
 
-/* Outer wrapper handles horizontal collapse when deleting 'u' without flattening preserve-3d. */
-.pyrn-pivot-wrap {
-  display: inline-block;
-  perspective: 460px;
-  overflow-x: clip;
-  overflow-y: visible;
-  white-space: nowrap;
-  will-change: max-width, opacity;
-  animation: pyrn-loop-pivot-wrap 9.5s cubic-bezier(0.45, 0, 0.25, 1) infinite;
+.pyrn-n1 {
+  animation: pyrn-loop-n1 9.5s cubic-bezier(0.45, 0, 0.25, 1) infinite;
 }
 
-/* Inner two-sided 3D flip glyph: BOTH pivot and faces share exact transform-origin (50% 56%) so u stays dead-level on baseline. */
-.pyrn-pivot {
-  display: inline-grid;
-  align-items: baseline;
-  transform-style: preserve-3d;
-  transform-origin: 50% 56%;
-  will-change: transform;
-  animation: pyrn-loop-pivot 9.5s cubic-bezier(0.45, 0, 0.25, 1) infinite;
-}
-
-.pyrn-face {
-  grid-area: 1 / 1;
-  display: inline-block;
-  transform-origin: 50% 56%;
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-}
-
-.pyrn-face-n {
-  transform: rotateX(0deg);
-}
-
-.pyrn-face-u {
-  transform: rotateX(180deg);
-  user-select: none;
-  animation: pyrn-loop-u-color 9.5s cubic-bezier(0.45, 0, 0.25, 1) infinite;
-}
-
-.pyrn-st,
-.pyrn-tail-n {
-  display: inline-block;
-  overflow-x: clip;
-  overflow-y: visible;
-  white-space: nowrap;
-  user-select: none;
-  transform-origin: 50% 56%;
-  will-change: transform, opacity, max-width;
+.pyrn-u {
+  animation: pyrn-loop-u 9.5s cubic-bezier(0.45, 0, 0.25, 1) infinite;
 }
 
 .pyrn-st {
   animation: pyrn-loop-st 9.5s cubic-bezier(0.45, 0, 0.25, 1) infinite;
 }
 
-.pyrn-tail-n {
-  animation: pyrn-loop-tail-n 9.5s cubic-bezier(0.45, 0, 0.25, 1) infinite;
+.pyrn-n2 {
+  animation: pyrn-loop-n2 9.5s cubic-bezier(0.45, 0, 0.25, 1) infinite;
 }
 
 .pyrn-wordmark:hover .pyrn-r,
-.pyrn-wordmark:hover .pyrn-pivot-wrap,
-.pyrn-wordmark:hover .pyrn-pivot,
-.pyrn-wordmark:hover .pyrn-face-u,
+.pyrn-wordmark:hover .pyrn-n1,
+.pyrn-wordmark:hover .pyrn-u,
 .pyrn-wordmark:hover .pyrn-st,
-.pyrn-wordmark:hover .pyrn-tail-n {
+.pyrn-wordmark:hover .pyrn-n2 {
   animation-play-state: paused;
 }
 
 /*
- * Seamless 9.5s loop:
- *  0–32%  PyRn   (calm hold; pivot front face 'n' visible)
- * 32–42%  n flips forward into 'u' while 'st' unfolds -> PyRust
- * 42–56%  PyRust (Rust accented in amber)
- * 56–64%  'st' deletes forward while trailing 'n' unfolds -> PyRun
- * 64–76%  PyRun
- * 76–84%  'u' deletes/collapses cleanly (no reverse spin!) so trailing 'n' snaps next to PyR -> PyRn
- * 84–99%  PyRn   (calm hold on trailing 'n' while hidden pivot silently resets to 0deg)
- * 99->100% atomic single-frame swap back to pivot 'n' (pixel-identical PyRn)
+ * Flat baseline-locked 9.5s loop (every visible glyph rests at rotateX(0deg) on the native baseline):
+ *  0–32%  PyRn   (calm hold on n1)
+ * 32–37%  n1 pitches forward 0deg -> -90deg (edge-on)
+ * 37%     atomic swap n1 -> u (at +90deg)
+ * 37–42%  u pitches forward +90deg -> 0deg while 'st' unfolds -> PyRust
+ * 42–56%  PyRust (Rust accented in amber; u rests flat at 0deg)
+ * 56–64%  'st' deletes forward while n2 unfolds -> PyRun
+ * 64–76%  PyRun  (all glyphs flat at 0deg)
+ * 76–84%  u deletes cleanly (collapses to 0 width, no reverse spin!) -> PyRn
+ * 84–99%  PyRn   (calm hold on n2)
+ * 99->100% atomic single-frame swap n2 -> n1 (pixel-identical PyRn)
  */
-@keyframes pyrn-loop-pivot {
-  0%, 32% {
-    transform: rotateX(0deg);
-  }
-  42%, 85% {
-    transform: rotateX(-180deg);
-    animation-timing-function: step-end;
-  }
-  88%, 100% {
-    transform: rotateX(0deg);
-  }
-}
-
-@keyframes pyrn-loop-pivot-wrap {
-  0%, 76% {
-    max-width: 1.4ch;
-    opacity: 1;
-  }
-  81% {
-    max-width: 0.7ch;
-    opacity: 0;
-  }
-  84%, 99% {
-    max-width: 0;
-    opacity: 0;
-    animation-timing-function: step-end;
-  }
-  100% {
-    max-width: 1.4ch;
-    opacity: 1;
-  }
-}
-
 @keyframes pyrn-loop-r {
   0%, 32% {
     color: inherit;
@@ -194,23 +138,79 @@
   }
 }
 
-@keyframes pyrn-loop-u-color {
-  0%, 56% {
-    color: var(--md-accent-fg-color);
+@keyframes pyrn-loop-n1 {
+  0%, 32% {
+    max-width: 1.4ch;
+    opacity: 1;
+    transform: rotateX(0deg);
   }
-  64%, 100% {
+  36.9% {
+    max-width: 1.4ch;
+    opacity: 0;
+    transform: rotateX(-90deg);
+    animation-timing-function: step-end;
+  }
+  37%, 99% {
+    max-width: 0;
+    opacity: 0;
+    transform: rotateX(0deg);
+    animation-timing-function: step-end;
+  }
+  100% {
+    max-width: 1.4ch;
+    opacity: 1;
+    transform: rotateX(0deg);
+  }
+}
+
+@keyframes pyrn-loop-u {
+  0%, 36.9% {
+    max-width: 0;
+    opacity: 0;
+    color: var(--md-accent-fg-color);
+    transform: rotateX(90deg);
+    animation-timing-function: step-end;
+  }
+  37% {
+    max-width: 1.4ch;
+    opacity: 0;
+    color: var(--md-accent-fg-color);
+    transform: rotateX(90deg);
+  }
+  42%, 56% {
+    max-width: 1.4ch;
+    opacity: 1;
+    color: var(--md-accent-fg-color);
+    transform: rotateX(0deg);
+  }
+  64%, 76% {
+    max-width: 1.4ch;
+    opacity: 1;
     color: inherit;
+    transform: rotateX(0deg);
+  }
+  81% {
+    max-width: 0.65ch;
+    opacity: 0;
+    color: inherit;
+    transform: scale(0.84);
+  }
+  84%, 100% {
+    max-width: 0;
+    opacity: 0;
+    color: inherit;
+    transform: rotateX(90deg);
   }
 }
 
 @keyframes pyrn-loop-st {
-  0%, 32% {
+  0%, 33% {
     max-width: 0;
     opacity: 0;
     color: var(--md-accent-fg-color);
-    transform: rotateX(95deg);
+    transform: rotateX(90deg);
   }
-  41%, 56% {
+  42%, 56% {
     max-width: 2.3ch;
     opacity: 1;
     color: var(--md-accent-fg-color);
@@ -220,20 +220,20 @@
     max-width: 1.1ch;
     opacity: 0;
     color: var(--md-accent-fg-color);
-    transform: rotateX(-95deg);
+    transform: rotateX(-90deg);
   }
   65%, 100% {
     max-width: 0;
     opacity: 0;
-    transform: rotateX(-95deg);
+    transform: rotateX(-90deg);
   }
 }
 
-@keyframes pyrn-loop-tail-n {
+@keyframes pyrn-loop-n2 {
   0%, 57% {
     max-width: 0;
     opacity: 0;
-    transform: rotateX(95deg);
+    transform: rotateX(90deg);
   }
   64%, 99% {
     max-width: 1.4ch;
@@ -244,24 +244,22 @@
   100% {
     max-width: 0;
     opacity: 0;
-    transform: rotateX(95deg);
+    transform: rotateX(90deg);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .pyrn-r,
-  .pyrn-pivot-wrap,
-  .pyrn-pivot,
-  .pyrn-face-u {
+  .pyrn-n1 {
     animation: none;
     color: inherit;
     opacity: 1;
     max-width: none;
     transform: none;
   }
-  .pyrn-face-u,
+  .pyrn-u,
   .pyrn-st,
-  .pyrn-tail-n {
+  .pyrn-n2 {
     display: none;
   }
 }
